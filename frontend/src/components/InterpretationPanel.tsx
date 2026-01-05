@@ -1,0 +1,262 @@
+'use client';
+
+import React, { useState, useRef, useEffect } from 'react';
+import { LANGUAGES } from '@/utils/constants';
+import { InterpretationWebSocket } from '@/services/websocket';
+
+const InterpretationPanel: React.FC = () => {
+  const [sourceLanguage, setSourceLanguage] = useState('en');
+  const [targetLanguage, setTargetLanguage] = useState('es');
+  const [isActive, setIsActive] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const [translatedText, setTranslatedText] = useState('');
+  const [classification, setClassification] = useState<string | null>(null);
+  const [confidence, setConfidence] = useState<number | null>(null);
+  const [needsHumanReview, setNeedsHumanReview] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  
+  const wsRef = useRef<InterpretationWebSocket | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const sessionIdRef = useRef<string>(`session-${Date.now()}`);
+
+  useEffect(() => {
+    return () => {
+      handleStop();
+    };
+  }, []);
+
+  const handleStart = async () => {
+    try {
+      setError(null);
+      setTranscript('');
+      setTranslatedText('');
+      setClassification(null);
+      setConfidence(null);
+      setNeedsHumanReview(false);
+
+      // Request microphone access
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        } 
+      });
+      mediaStreamRef.current = stream;
+
+      // Set up WebSocket connection
+      const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'wss://api.languu.com';
+      const ws = new InterpretationWebSocket(wsUrl);
+      wsRef.current = ws;
+
+      // Set up event listeners
+      ws.on('interpretation', (data) => {
+        if (data.text) setTranscript((prev) => prev + ' ' + data.text);
+        if (data.translatedText) setTranslatedText((prev) => prev + ' ' + data.translatedText);
+        if (data.classification) setClassification(data.classification);
+        if (data.confidence !== undefined) setConfidence(data.confidence);
+        if (data.needsHumanReview !== undefined) setNeedsHumanReview(data.needsHumanReview);
+      });
+
+      ws.on('error', (data) => {
+        setError(data.message || 'Interpretation error');
+      });
+
+      // Connect WebSocket
+      await ws.connect(sourceLanguage, targetLanguage, sessionIdRef.current);
+
+      // Set up audio processing for continuous capture
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      audioContextRef.current = audioContext;
+
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      processorRef.current = processor;
+
+      processor.onaudioprocess = (e) => {
+        if (ws.isConnected()) {
+          const inputData = e.inputBuffer.getChannelData(0);
+          const buffer = new ArrayBuffer(inputData.length * 2);
+          const view = new DataView(buffer);
+          
+          for (let i = 0; i < inputData.length; i++) {
+            const s = Math.max(-1, Math.min(1, inputData[i]));
+            view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+          }
+
+          // Send audio chunk via WebSocket
+          // In production, you'd use Amazon Transcribe Streaming here
+          // For now, we'll simulate by sending audio data
+          ws.sendAudioChunk(buffer);
+        }
+      };
+
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+
+      setIsActive(true);
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          setError('Microphone access denied. Please allow microphone access and try again.');
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError('Failed to start interpretation');
+      }
+    }
+  };
+
+  const handleStop = () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+
+    if (processorRef.current) {
+      processorRef.current.disconnect();
+      processorRef.current = null;
+    }
+
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
+
+    if (wsRef.current) {
+      wsRef.current.disconnect();
+      wsRef.current = null;
+    }
+
+    setIsActive(false);
+  };
+
+  return (
+    <div className="w-full max-w-6xl">
+      <div className="mb-6 flex gap-4 items-end">
+        <div className="flex-1">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Source language
+          </label>
+          <select
+            value={sourceLanguage}
+            onChange={(e) => setSourceLanguage(e.target.value)}
+            disabled={isActive}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+          >
+            {LANGUAGES.filter((lang) => lang.code !== 'auto').map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex-1">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Target language
+          </label>
+          <select
+            value={targetLanguage}
+            onChange={(e) => setTargetLanguage(e.target.value)}
+            disabled={isActive}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
+          >
+            {LANGUAGES.filter((lang) => lang.code !== 'auto').map((lang) => (
+              <option key={lang.code} value={lang.code}>
+                {lang.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
+          {error}
+        </div>
+      )}
+
+      {needsHumanReview && (
+        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-lg">
+          <p className="font-medium">Human review recommended</p>
+          <p className="text-sm mt-1">
+            Low confidence detected. A human interpreter has been notified and will review this segment.
+          </p>
+        </div>
+      )}
+
+      <div className="mb-6 flex items-center gap-4">
+        {!isActive ? (
+          <button
+            onClick={handleStart}
+            className="px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-lg flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clipRule="evenodd" />
+            </svg>
+            Start Interpretation
+          </button>
+        ) : (
+          <button
+            onClick={handleStop}
+            className="px-8 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-lg flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clipRule="evenodd" />
+            </svg>
+            Stop Interpretation
+          </button>
+        )}
+        
+        {isActive && (
+          <div className="flex items-center gap-2 text-green-600">
+            <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            <span className="text-sm font-medium">Listening...</span>
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Live Transcript
+            </label>
+            {classification && (
+              <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">
+                {classification}
+              </span>
+            )}
+            {confidence !== null && (
+              <span className="text-xs text-gray-500">
+                Confidence: {Math.round(confidence * 100)}%
+              </span>
+            )}
+          </div>
+          <textarea
+            value={transcript}
+            readOnly
+            placeholder="Transcript will appear here as you speak..."
+            className="w-full h-96 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 resize-none"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Live Translation
+          </label>
+          <textarea
+            value={translatedText}
+            readOnly
+            placeholder="Translation will appear here..."
+            className="w-full h-96 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 resize-none"
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default InterpretationPanel;
