@@ -1,6 +1,7 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { PollyClient, SynthesizeSpeechCommand } from '@aws-sdk/client-polly';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { PollyClient, SynthesizeSpeechCommand, LanguageCode } from '@aws-sdk/client-polly';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { Logger } from '../../shared/utils/logger';
 import { createSuccessResponse, createErrorResponse, createCorsResponse } from '../../shared/utils/response';
 import { TTSRequest, TTSResponse } from '../../shared/types';
@@ -8,6 +9,33 @@ import { awsConfig, resourceNames, pollyClient, s3Client } from '../../shared/co
 import { v4 as uuidv4 } from 'uuid';
 
 const logger = new Logger({ function: 'tts' });
+
+// Helper to map short language codes to Polly's full locale codes
+const mapToPollyLanguageCode = (langCode: string): LanguageCode => {
+  const mapping: Record<string, LanguageCode> = {
+    'en': LanguageCode.EN_US, // Default to US English
+    'es': LanguageCode.ES_ES, // Default to Spain Spanish
+    'fr': LanguageCode.FR_FR, // Default to France French
+    'de': LanguageCode.DE_DE, // Default to Germany German
+    'it': LanguageCode.IT_IT,
+    'pt': LanguageCode.PT_BR, // Default to Brazilian Portuguese
+    'ru': LanguageCode.RU_RU,
+    'ja': LanguageCode.JA_JP,
+    'ko': LanguageCode.KO_KR,
+    'zh': LanguageCode.CMN_CN, // Chinese (Mandarin) - Simplified
+    'ar': LanguageCode.ARB, // Arabic (arb is the code for Arabic)
+    'hi': LanguageCode.HI_IN,
+    'nl': LanguageCode.NL_NL,
+    'pl': LanguageCode.PL_PL,
+    'tr': LanguageCode.TR_TR,
+    'sv': LanguageCode.SV_SE,
+    'da': LanguageCode.DA_DK,
+    'no': LanguageCode.NB_NO, // Norwegian Bokmål
+    'fi': LanguageCode.FI_FI,
+    // Add more mappings as needed
+  };
+  return mapping[langCode] || LanguageCode.EN_US; // Default to en-US
+};
 
 export const handler = async (
   event: APIGatewayProxyEvent
@@ -43,12 +71,15 @@ export const handler = async (
       textLength: request.text.length,
     });
 
+    // Map short language code to Polly's full locale code
+    const pollyLanguageCode = mapToPollyLanguageCode(request.language);
+
     // Synthesize speech
     const synthesizeCommand = new SynthesizeSpeechCommand({
       Text: request.text,
       OutputFormat: 'mp3',
-      VoiceId: request.voiceId,
-      LanguageCode: request.language,
+      VoiceId: request.voiceId as any, // Type assertion for voice ID
+      LanguageCode: pollyLanguageCode, // Use mapped language code
       Engine: 'neural', // Use neural engine for better quality
     });
 
@@ -74,8 +105,14 @@ export const handler = async (
 
     await s3Client.send(putObjectCommand);
 
-    // Generate presigned URL for access
-    const audioUrl = `https://${resourceNames.s3Bucket}.s3.${awsConfig.region}.amazonaws.com/${audioKey}`;
+    // Generate presigned URL for access (expires in 1 hour)
+    const getObjectCommand = new GetObjectCommand({
+      Bucket: resourceNames.s3Bucket,
+      Key: audioKey,
+    });
+
+    const expiresIn = 3600; // 1 hour
+    const audioUrl = await getSignedUrl(s3Client, getObjectCommand, { expiresIn });
 
     const response: TTSResponse = {
       audioUrl,

@@ -49,32 +49,143 @@ export const translateText = async (
   }
 };
 
-// Transcription API
+// Get presigned URL for file upload
+export const getPresignedUploadUrl = async (
+  fileName: string,
+  contentType: string
+): Promise<{ uploadUrl: string; fileKey: string; expiresIn: number }> => {
+  try {
+    const response = await apiClient.post<{ success: boolean; data: { uploadUrl: string; fileKey: string; expiresIn: number } }>(
+      API_ENDPOINTS.TRANSCRIBE_UPLOAD,
+      { fileName, contentType }
+    );
+    if (!response.data.success || !response.data.data) {
+      throw new Error('Failed to get upload URL');
+    }
+    return response.data.data;
+  } catch (error) {
+    throw handleError(error, 'Failed to get upload URL. Please try again.');
+  }
+};
+
+// Upload file directly to S3
+export const uploadFileToS3 = async (
+  presignedUrl: string,
+  file: File,
+  onProgress?: (progress: number) => void
+): Promise<void> => {
+  try {
+    await axios.put(presignedUrl, file, {
+      headers: {
+        'Content-Type': file.type,
+      },
+      timeout: 300000, // 5 minutes for large files
+      onUploadProgress: (progressEvent) => {
+        if (progressEvent.total && onProgress) {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          onProgress(percentCompleted);
+        }
+      },
+    });
+  } catch (error) {
+    throw new Error('Failed to upload file to S3. Please try again.');
+  }
+};
+
+// Get transcription status
+export const getTranscriptionStatus = async (
+  jobId: string
+): Promise<{ status: string; transcript?: string; translatedText?: string; error?: string }> => {
+  try {
+    const response = await apiClient.get<{ success: boolean; data: any }>(
+      `${API_ENDPOINTS.TRANSCRIBE}/status/${jobId}`
+    );
+    if (!response.data.success || !response.data.data) {
+      throw new Error('Invalid response from transcription status service');
+    }
+    return response.data.data;
+  } catch (error) {
+    throw handleError(error, 'Failed to get transcription status. Please try again.');
+  }
+};
+
+// Transcription API - always uses S3 presigned URL for all files
 export const transcribeAudio = async (
-  request: TranscriptionRequest
+  request: TranscriptionRequest,
+  onUploadProgress?: (progress: number) => void,
+  onStatusUpdate?: (status: string) => void
 ): Promise<TranscriptionResponse> => {
   try {
-    const formData = new FormData();
-    formData.append('file', request.file);
-    formData.append('sourceLanguage', request.sourceLanguage);
-    if (request.targetLanguage) {
-      formData.append('targetLanguage', request.targetLanguage);
-    }
+    // Always use S3 presigned URL approach for all files
+    // This avoids API Gateway 10MB limit and is more consistent
+    
+    // Step 1: Get presigned URL
+    const { uploadUrl, fileKey } = await getPresignedUploadUrl(
+      request.file.name,
+      request.file.type
+    );
 
-    const response = await apiClient.post<{ success: boolean; data: TranscriptionResponse }>(
+    // Step 2: Upload file directly to S3
+    await uploadFileToS3(uploadUrl, request.file, onUploadProgress);
+
+    // Step 3: Call transcribe with fileKey (returns job ID immediately)
+    const response = await apiClient.post<{ success: boolean; data: { jobId: string; status: string; message?: string } }>(
       API_ENDPOINTS.TRANSCRIBE,
-      formData,
       {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        timeout: 300000, // 5 minutes for large files
+        fileKey,
+        sourceLanguage: request.sourceLanguage,
+        targetLanguage: request.targetLanguage,
       }
     );
+    
     if (!response.data.success || !response.data.data) {
       throw new Error('Invalid response from transcription service');
     }
-    return response.data.data;
+
+    const { jobId, status } = response.data.data;
+
+    // If job is already completed (unlikely but possible), return immediately
+    if (status === 'COMPLETED' && response.data.data.transcript) {
+      return {
+        transcript: response.data.data.transcript,
+        translatedText: response.data.data.translatedText,
+        jobId,
+      };
+    }
+
+    // Poll for status (transcription is async)
+    if (onStatusUpdate) {
+      onStatusUpdate('Processing transcription...');
+    }
+
+    const maxPollAttempts = 120; // 10 minutes max (120 * 5 seconds)
+    let attempts = 0;
+
+    while (attempts < maxPollAttempts) {
+      await new Promise((resolve) => setTimeout(resolve, 5000)); // Wait 5 seconds
+
+      const statusResult = await getTranscriptionStatus(jobId);
+
+      if (statusResult.status === 'COMPLETED') {
+        return {
+          transcript: statusResult.transcript || '',
+          translatedText: statusResult.translatedText,
+          jobId,
+        };
+      }
+
+      if (statusResult.status === 'FAILED') {
+        throw new Error(statusResult.error || 'Transcription failed');
+      }
+
+      if (onStatusUpdate) {
+        onStatusUpdate(`Processing... (${attempts + 1}/${maxPollAttempts})`);
+      }
+
+      attempts++;
+    }
+
+    throw new Error('Transcription timed out. Please check status later.');
   } catch (error) {
     throw handleError(error, 'Transcription failed. Please try again.');
   }

@@ -14,7 +14,7 @@ export interface WebSocketApiConfig {
 export function createWebSocketApi(
   scope: Construct,
   config: WebSocketApiConfig
-): WebSocketApi {
+): { api: WebSocketApi; stage: WebSocketStage; url: string } {
   const api = new WebSocketApi(scope, `LanguuWebSocketApi-${config.stage}`, {
     apiName: `languu-${config.stage}-websocket`,
     description: `LANGUU Real-time Interpretation WebSocket API - ${config.stage}`,
@@ -41,5 +41,10 @@ export function createWebSocketApi(
     sourceArn: api.arnForExecuteApi(),
   });
 
-  return api;
+  // Return both API and stage for URL access
+  return {
+    api,
+    stage,
+    url: `${api.apiEndpoint}/${stage.stageName}`,
+  };
 }

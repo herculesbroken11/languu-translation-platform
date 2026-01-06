@@ -29,6 +29,7 @@ const ReviewerConsole: React.FC = () => {
     // Poll for new reviews every 5 seconds
     const interval = setInterval(loadPendingReviews, 5000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadPendingReviews = async () => {

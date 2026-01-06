@@ -1,4 +1,4 @@
-import { APIGatewayProxyWebsocketEvent, APIGatewayProxyWebsocketHandlerV2 } from 'aws-lambda';
+import { APIGatewayProxyWebsocketEventV2, Context } from 'aws-lambda';
 import { TranslateClient, TranslateTextCommand } from '@aws-sdk/client-translate';
 import { ComprehendClient, DetectSentimentCommand, ClassifyDocumentCommand } from '@aws-sdk/client-comprehend';
 import { Logger } from '../../shared/utils/logger';
@@ -15,13 +15,18 @@ const activeConnections = new Map<string, {
   sessionId: string;
 }>();
 
-export const connectHandler: APIGatewayProxyWebsocketHandlerV2 = async (event) => {
+export const connectHandler = async (
+  event: APIGatewayProxyWebsocketEventV2,
+  context: Context
+): Promise<{ statusCode: number }> => {
   const connectionId = event.requestContext.connectionId!;
-  const queryParams = event.queryStringParameters || {};
   
-  const sourceLanguage = queryParams.sourceLanguage || 'en';
-  const targetLanguage = queryParams.targetLanguage || 'es';
-  const sessionId = queryParams.sessionId || `session-${Date.now()}`;
+  // Parse query string from event (WebSocket V2 may have queryString in requestContext)
+  const queryString = (event as any).queryStringParameters || {};
+  
+  const sourceLanguage = (queryString.sourceLanguage as string) || 'en';
+  const targetLanguage = (queryString.targetLanguage as string) || 'es';
+  const sessionId = (queryString.sessionId as string) || `session-${Date.now()}`;
 
   activeConnections.set(connectionId, {
     sourceLanguage,
@@ -52,7 +57,10 @@ export const connectHandler: APIGatewayProxyWebsocketHandlerV2 = async (event) =
   return { statusCode: 200 };
 };
 
-export const disconnectHandler: APIGatewayProxyWebsocketHandlerV2 = async (event) => {
+export const disconnectHandler = async (
+  event: APIGatewayProxyWebsocketEventV2,
+  context: Context
+): Promise<{ statusCode: number }> => {
   const connectionId = event.requestContext.connectionId!;
   
   const connection = activeConnections.get(connectionId);
@@ -81,7 +89,10 @@ export const disconnectHandler: APIGatewayProxyWebsocketHandlerV2 = async (event
   return { statusCode: 200 };
 };
 
-export const messageHandler: APIGatewayProxyWebsocketHandlerV2 = async (event) => {
+export const messageHandler = async (
+  event: APIGatewayProxyWebsocketEventV2,
+  context: Context
+): Promise<{ statusCode: number; body?: string }> => {
   const connectionId = event.requestContext.connectionId!;
   const connection = activeConnections.get(connectionId);
 
@@ -163,7 +174,7 @@ async function processTextSegment(
       logger.debug('Custom classifier not available, using sentiment', { error });
       const sentimentCommand = new DetectSentimentCommand({
         Text: text,
-        LanguageCode: sourceLanguage,
+        LanguageCode: sourceLanguage as any, // Type assertion for language code
       });
 
       const sentimentResult = await comprehendClient.send(sentimentCommand);

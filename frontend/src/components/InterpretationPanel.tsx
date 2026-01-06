@@ -36,15 +36,97 @@ const InterpretationPanel: React.FC = () => {
       setConfidence(null);
       setNeedsHumanReview(false);
 
-      // Request microphone access
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        } 
+      // Ensure we're in the browser environment
+      if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+        throw new Error('This feature requires a browser environment.');
+      }
+
+      // Debug: Log browser capabilities
+      console.log('Browser capabilities:', {
+        hasMediaDevices: !!navigator.mediaDevices,
+        hasGetUserMedia: !!(navigator.mediaDevices?.getUserMedia),
+        hasLegacyGetUserMedia: !!(navigator as any).getUserMedia,
+        protocol: window.location.protocol,
+        hostname: window.location.hostname,
+        userAgent: navigator.userAgent.substring(0, 50) + '...',
       });
-      mediaStreamRef.current = stream;
+
+      let stream: MediaStream;
+
+      // Try modern API first (navigator.mediaDevices.getUserMedia)
+      if (navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            } 
+          });
+          mediaStreamRef.current = stream;
+        } catch (err) {
+          // If modern API fails, try legacy fallback
+          throw err; // Re-throw to be caught by outer catch
+        }
+      } else {
+        // Fallback for older browsers or browsers without mediaDevices
+        const getUserMedia = 
+          (navigator as any).getUserMedia ||
+          (navigator as any).webkitGetUserMedia ||
+          (navigator as any).mozGetUserMedia ||
+          (navigator as any).msGetUserMedia;
+
+        if (!getUserMedia) {
+          // Provide more detailed error information
+          const browserInfo = {
+            userAgent: navigator.userAgent,
+            hasMediaDevices: !!navigator.mediaDevices,
+            hasGetUserMedia: !!(navigator.mediaDevices?.getUserMedia),
+            protocol: window.location.protocol,
+            hostname: window.location.hostname,
+          };
+          
+          console.error('Microphone API not available:', browserInfo);
+          
+          // Check if the issue is due to HTTP/IP address access
+          const isIPAddress = /^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname);
+          const isHTTP = window.location.protocol === 'http:';
+          const isNotLocalhost = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+          
+          let errorMessage = 'Microphone access is not available.\n\n';
+          
+          if (isHTTP && (isIPAddress || isNotLocalhost)) {
+            errorMessage += '⚠️ IMPORTANT: Browsers require HTTPS (or localhost) for microphone access.\n\n';
+            errorMessage += 'You are currently accessing the site via:\n';
+            errorMessage += `• Protocol: ${window.location.protocol}\n`;
+            errorMessage += `• Hostname: ${window.location.hostname}\n\n`;
+            errorMessage += 'SOLUTIONS:\n';
+            errorMessage += '1. Access via localhost: http://localhost:3000\n';
+            errorMessage += '2. Access via 127.0.0.1: http://127.0.0.1:3000\n';
+            errorMessage += '3. Set up HTTPS for your development server\n\n';
+            errorMessage += 'After changing to localhost, refresh the page and try again.';
+          } else {
+            errorMessage += 'Please try:\n';
+            errorMessage += '1. Use a modern browser (Chrome, Firefox, Edge, Safari)\n';
+            errorMessage += '2. Ensure you are accessing the site over HTTPS or localhost\n';
+            errorMessage += '3. Check browser permissions for microphone access\n';
+            errorMessage += '4. Try accessing via http://localhost:3000 instead of an IP address';
+          }
+          
+          throw new Error(errorMessage);
+        }
+
+        // Use legacy API with Promise wrapper
+        stream = await new Promise<MediaStream>((resolve, reject) => {
+          getUserMedia.call(
+            navigator,
+            { audio: true },
+            resolve,
+            reject
+          );
+        });
+        mediaStreamRef.current = stream;
+      }
 
       // Set up WebSocket connection
       const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'wss://api.languu.com';

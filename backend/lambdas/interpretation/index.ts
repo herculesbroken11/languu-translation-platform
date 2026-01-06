@@ -77,7 +77,7 @@ export async function processInterpretationChunk(
     // Analyze sentiment/confidence
     const sentimentCommand = new DetectSentimentCommand({
       Text: transcript,
-      LanguageCode: sourceLanguage,
+      LanguageCode: sourceLanguage as any, // Type assertion for language code
     });
 
     const sentimentResult = await comprehendClient.send(sentimentCommand);

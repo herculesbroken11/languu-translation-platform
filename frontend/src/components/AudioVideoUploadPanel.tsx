@@ -11,6 +11,8 @@ const AudioVideoUploadPanel: React.FC = () => {
   const [transcript, setTranscript] = useState('');
   const [translatedText, setTranslatedText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -56,12 +58,25 @@ const AudioVideoUploadPanel: React.FC = () => {
     setTranslatedText('');
 
     try {
-      const result = await transcribeAudio({
-        file,
-        sourceLanguage: sourceLanguage === 'auto' ? 'auto' : sourceLanguage,
-        targetLanguage,
-      });
+      setUploadProgress(0);
+      setStatusMessage(null);
+      const result = await transcribeAudio(
+        {
+          file,
+          sourceLanguage: sourceLanguage === 'auto' ? 'auto' : sourceLanguage,
+          targetLanguage,
+        },
+        (progress) => {
+          setUploadProgress(progress);
+          setStatusMessage(`Uploading: ${progress}%`);
+        },
+        (status) => {
+          setStatusMessage(status);
+        }
+      );
 
+      setUploadProgress(100);
+      setStatusMessage('Completed!');
       setTranscript(result.transcript);
       if (result.translatedText) {
         setTranslatedText(result.translatedText);
@@ -150,6 +165,12 @@ const AudioVideoUploadPanel: React.FC = () => {
         </div>
       )}
 
+      {statusMessage && !error && (
+        <div className="mb-4 p-3 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg">
+          {statusMessage}
+        </div>
+      )}
+
       <div className="mb-4">
         <button
           onClick={handleTranscribe}
@@ -158,6 +179,17 @@ const AudioVideoUploadPanel: React.FC = () => {
         >
           {isProcessing ? 'Processing...' : 'Transcribe & Translate'}
         </button>
+        {isProcessing && uploadProgress > 0 && uploadProgress < 100 && (
+          <div className="mt-2">
+            <div className="w-full bg-gray-200 rounded-full h-2.5">
+              <div
+                className="bg-primary-600 h-2.5 rounded-full transition-all duration-300"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+            <p className="text-sm text-gray-600 mt-1">Uploading: {uploadProgress}%</p>
+          </div>
+        )}
       </div>
 
       {(transcript || translatedText) && (

@@ -56,48 +56,55 @@ const TranslationPanel: React.FC<TranslationPanelProps> = ({
 
   return (
     <div className="w-full">
-      <div className="mb-4 flex gap-4 items-end">
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            From
-          </label>
-          <select
-            value={sourceLanguage}
-            onChange={(e) => setSourceLanguage(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-          >
-            {LANGUAGES.map((lang) => (
-              <option key={lang.code} value={lang.code}>
-                {lang.name}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs text-red-600 mt-1">Detect language may be in the dropdown menu</p>
+      <div className="mb-4">
+        <div className="flex gap-4 items-start">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              From
+            </label>
+            <select
+              value={sourceLanguage}
+              onChange={(e) => setSourceLanguage(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              {LANGUAGES.map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-red-600 mt-1">Detect language may be in the dropdown menu</p>
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              To
+            </label>
+            <select
+              value={targetLanguage}
+              onChange={(e) => setTargetLanguage(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+            >
+              {LANGUAGES.filter((lang) => lang.code !== 'auto').map((lang) => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-shrink-0">
+            <label className="block text-sm font-medium text-gray-700 mb-2 invisible">
+              Translate
+            </label>
+            <button
+              onClick={handleTranslate}
+              disabled={isTranslating || !inputText.trim()}
+              className="px-6 py-2 text-white rounded-lg hover:opacity-90 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium whitespace-nowrap"
+              style={{ backgroundColor: '#9333ea' }}
+            >
+              {isTranslating ? 'Translating...' : 'Translate'}
+            </button>
+          </div>
         </div>
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            To
-          </label>
-          <select
-            value={targetLanguage}
-            onChange={(e) => setTargetLanguage(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-          >
-            {LANGUAGES.filter((lang) => lang.code !== 'auto').map((lang) => (
-              <option key={lang.code} value={lang.code}>
-                {lang.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          onClick={handleTranslate}
-          disabled={isTranslating || !inputText.trim()}
-          className="px-6 py-2 text-white rounded-lg hover:opacity-90 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
-          style={{ backgroundColor: '#9333ea' }}
-        >
-          {isTranslating ? 'Translating...' : 'Translate'}
-        </button>
       </div>
 
       {error && (

@@ -9,7 +9,7 @@ const LoginPage: React.FC = () => {
         <div className="bg-white shadow-md rounded-lg px-8 pt-6 pb-8">
           <div className="text-center text-gray-600">
             <p className="text-lg">Authentication coming soon.</p>
-            <p className="mt-2 text-sm">We're setting up secure authentication using AWS Cognito.</p>
+            <p className="mt-2 text-sm">We&apos;re setting up secure authentication using AWS Cognito.</p>
           </div>
         </div>
       </div>

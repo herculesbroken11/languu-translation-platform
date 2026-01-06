@@ -24,6 +24,8 @@ export const LANGUAGES = [
 export const API_ENDPOINTS = {
   TRANSLATE: '/translate',
   TRANSCRIBE: '/transcribe',
+  TRANSCRIBE_UPLOAD: '/transcribe/upload',
+  TRANSCRIBE_STATUS: '/transcribe/status',
   INTERPRETATION: '/interpretation',
   TTS: '/tts',
   HITL: '/hitl',

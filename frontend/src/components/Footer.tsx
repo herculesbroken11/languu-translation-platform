@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 
 const Footer: React.FC = () => {
   return (
@@ -15,19 +16,19 @@ const Footer: React.FC = () => {
             <h4 className="font-semibold mb-4">Product</h4>
             <ul className="space-y-2 text-sm text-gray-400">
               <li>
-                <a href="/" className="hover:text-white transition-colors">
+                <Link href="/" className="hover:text-white transition-colors">
                   Translate
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/transcribe" className="hover:text-white transition-colors">
+                <Link href="/transcribe" className="hover:text-white transition-colors">
                   Transcribe
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/interpretation" className="hover:text-white transition-colors">
+                <Link href="/interpretation" className="hover:text-white transition-colors">
                   AI Interpretation
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -35,14 +36,14 @@ const Footer: React.FC = () => {
             <h4 className="font-semibold mb-4">Company</h4>
             <ul className="space-y-2 text-sm text-gray-400">
               <li>
-                <a href="/pricing" className="hover:text-white transition-colors">
+                <Link href="/pricing" className="hover:text-white transition-colors">
                   Pricing
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="/blog" className="hover:text-white transition-colors">
+                <Link href="/blog" className="hover:text-white transition-colors">
                   Blog
-                </a>
+                </Link>
               </li>
             </ul>
           </div>

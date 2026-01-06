@@ -1,4 +1,4 @@
-import { Bucket, BucketEncryption, BlockPublicAccess } from 'aws-cdk-lib/aws-s3';
+import { Bucket, BucketEncryption, BlockPublicAccess, CorsRule, HttpMethods } from 'aws-cdk-lib/aws-s3';
 import { RemovalPolicy } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 
@@ -19,6 +19,15 @@ export function createS3Bucket(
         ? RemovalPolicy.RETAIN
         : RemovalPolicy.DESTROY,
     autoDeleteObjects: config.stage !== 'production',
+    cors: [
+      {
+        allowedOrigins: ['*'], // In production, replace with specific domain
+        allowedMethods: [HttpMethods.GET, HttpMethods.PUT, HttpMethods.POST, HttpMethods.HEAD, HttpMethods.DELETE],
+        allowedHeaders: ['*'],
+        exposedHeaders: ['ETag', 'x-amz-server-side-encryption', 'x-amz-request-id', 'x-amz-id-2'],
+        maxAge: 3000,
+      },
+    ],
   });
 
   return bucket;

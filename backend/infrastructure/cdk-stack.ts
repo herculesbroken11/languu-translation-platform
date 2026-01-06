@@ -2,9 +2,10 @@ import { Stack, StackProps, Duration, CfnOutput } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { Runtime } from 'aws-cdk-lib/aws-lambda';
-import { RetentionDays } from 'aws-cdk-lib/aws-logs';
+import { RetentionDays, LogGroup } from 'aws-cdk-lib/aws-logs';
 import { getLambdaPolicyStatements } from './iam';
 import { createApiGateway, ApiGatewayConfig } from './api-gateway';
+import { createWebSocketApi, WebSocketApiConfig } from './websocket-api';
 import { createDynamoDBTable, DynamoDBConfig } from './dynamodb';
 import { createS3Bucket, S3Config } from './s3';
 import * as path from 'path';
@@ -33,15 +34,25 @@ export class LanguuStack extends Stack {
       functionName: `languu-${stage}-translate`,
       timeout: Duration.minutes(5),
       memorySize: 512,
-      logRetention: RetentionDays.ONE_WEEK,
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        target: 'node20',
+        externalModules: ['aws-sdk'],
+      },
+      depsLockFilePath: path.join(__dirname, '../package-lock.json'),
+      logGroup: new LogGroup(this, `TranslateLogGroup-${stage}`, {
+        logGroupName: `/aws/lambda/languu-${stage}-translate`,
+        retention: RetentionDays.ONE_WEEK,
+      }),
       environment: {
         STAGE: stage,
-        AWS_REGION: this.region,
         S3_BUCKET: mediaBucket.bucketName,
         DYNAMODB_TABLE: jobsTable.tableName,
       },
     });
-    translateFunction.addToRolePolicy(...getLambdaPolicyStatements(mediaBucket.bucketName, jobsTable.tableName));
+    const policies = getLambdaPolicyStatements(mediaBucket.bucketName, jobsTable.tableName);
+    policies.forEach(policy => translateFunction.addToRolePolicy(policy));
 
     // Transcribe Lambda
     const transcribeFunction = new NodejsFunction(this, `TranscribeFunction-${stage}`, {
@@ -51,16 +62,56 @@ export class LanguuStack extends Stack {
       functionName: `languu-${stage}-transcribe`,
       timeout: Duration.minutes(10),
       memorySize: 512,
-      logRetention: RetentionDays.ONE_WEEK,
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        target: 'node20',
+        externalModules: ['aws-sdk'],
+      },
+      depsLockFilePath: path.join(__dirname, '../package-lock.json'),
+      logGroup: new LogGroup(this, `TranscribeLogGroup-${stage}`, {
+        logGroupName: `/aws/lambda/languu-${stage}-transcribe`,
+        retention: RetentionDays.ONE_WEEK,
+      }),
       environment: {
         STAGE: stage,
-        AWS_REGION: this.region,
         S3_BUCKET: mediaBucket.bucketName,
         DYNAMODB_TABLE: jobsTable.tableName,
       },
     });
-    transcribeFunction.addToRolePolicy(...getLambdaPolicyStatements(mediaBucket.bucketName, jobsTable.tableName));
+    const transcribePolicies = getLambdaPolicyStatements(mediaBucket.bucketName, jobsTable.tableName);
+    transcribePolicies.forEach(policy => transcribeFunction.addToRolePolicy(policy));
     mediaBucket.grantReadWrite(transcribeFunction);
+
+    // Transcribe Status Lambda
+    const transcribeStatusFunction = new NodejsFunction(this, `TranscribeStatusFunction-${stage}`, {
+      runtime: Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambdas/transcribe/status.ts'),
+      functionName: `languu-${stage}-transcribe-status`,
+      timeout: Duration.minutes(5),
+      memorySize: 256,
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        target: 'node20',
+        externalModules: ['aws-sdk'],
+      },
+      depsLockFilePath: path.join(__dirname, '../package-lock.json'),
+      logGroup: new LogGroup(this, `TranscribeStatusLogGroup-${stage}`, {
+        logGroupName: `/aws/lambda/languu-${stage}-transcribe-status`,
+        retention: RetentionDays.ONE_WEEK,
+      }),
+      environment: {
+        STAGE: stage,
+        S3_BUCKET: mediaBucket.bucketName,
+        DYNAMODB_TABLE: jobsTable.tableName,
+      },
+    });
+    const statusPolicies = getLambdaPolicyStatements(mediaBucket.bucketName, jobsTable.tableName);
+    statusPolicies.forEach(policy => transcribeStatusFunction.addToRolePolicy(policy));
+    mediaBucket.grantRead(transcribeStatusFunction);
+    jobsTable.grantReadData(transcribeStatusFunction);
 
     // Transcribe Upload Lambda
     const transcribeUploadFunction = new NodejsFunction(
@@ -73,16 +124,26 @@ export class LanguuStack extends Stack {
         functionName: `languu-${stage}-transcribe-upload`,
         timeout: Duration.minutes(5),
         memorySize: 256,
-        logRetention: RetentionDays.ONE_WEEK,
+        bundling: {
+          minify: true,
+          sourceMap: true,
+          target: 'node20',
+          externalModules: ['aws-sdk'],
+        },
+        depsLockFilePath: path.join(__dirname, '../package-lock.json'),
+        logGroup: new LogGroup(this, `TranscribeUploadLogGroup-${stage}`, {
+          logGroupName: `/aws/lambda/languu-${stage}-transcribe-upload`,
+          retention: RetentionDays.ONE_WEEK,
+        }),
         environment: {
           STAGE: stage,
-          AWS_REGION: this.region,
           S3_BUCKET: mediaBucket.bucketName,
           DYNAMODB_TABLE: jobsTable.tableName,
         },
       }
     );
-    transcribeUploadFunction.addToRolePolicy(...getLambdaPolicyStatements(mediaBucket.bucketName, jobsTable.tableName));
+    const uploadPolicies = getLambdaPolicyStatements(mediaBucket.bucketName, jobsTable.tableName);
+    uploadPolicies.forEach(policy => transcribeUploadFunction.addToRolePolicy(policy));
     mediaBucket.grantPut(transcribeUploadFunction);
 
     // Interpretation Lambda
@@ -92,20 +153,30 @@ export class LanguuStack extends Stack {
       {
         runtime: Runtime.NODEJS_20_X,
         handler: 'handler',
-        entry: path.join(__dirname, '../lambdas/interpretation/index.ts'),
+        entry: path.join(__dirname, '../lambdas/interpretation/websocket-handler.ts'),
         functionName: `languu-${stage}-interpretation`,
         timeout: Duration.minutes(15),
         memorySize: 512,
-        logRetention: RetentionDays.ONE_WEEK,
+        bundling: {
+          minify: true,
+          sourceMap: true,
+          target: 'node20',
+          externalModules: ['aws-sdk'],
+        },
+        depsLockFilePath: path.join(__dirname, '../package-lock.json'),
+        logGroup: new LogGroup(this, `InterpretationLogGroup-${stage}`, {
+          logGroupName: `/aws/lambda/languu-${stage}-interpretation`,
+          retention: RetentionDays.ONE_WEEK,
+        }),
         environment: {
           STAGE: stage,
-          AWS_REGION: this.region,
           S3_BUCKET: mediaBucket.bucketName,
           DYNAMODB_TABLE: jobsTable.tableName,
         },
       }
     );
-    interpretationFunction.addToRolePolicy(...getLambdaPolicyStatements(mediaBucket.bucketName, jobsTable.tableName));
+    const interpretationPolicies = getLambdaPolicyStatements(mediaBucket.bucketName, jobsTable.tableName);
+    interpretationPolicies.forEach(policy => interpretationFunction.addToRolePolicy(policy));
 
     // TTS Lambda
     const ttsFunction = new NodejsFunction(this, `TTSFunction-${stage}`, {
@@ -115,15 +186,25 @@ export class LanguuStack extends Stack {
       functionName: `languu-${stage}-tts`,
       timeout: Duration.minutes(5),
       memorySize: 512,
-      logRetention: RetentionDays.ONE_WEEK,
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        target: 'node20',
+        externalModules: ['aws-sdk'],
+      },
+      depsLockFilePath: path.join(__dirname, '../package-lock.json'),
+      logGroup: new LogGroup(this, `TTSLogGroup-${stage}`, {
+        logGroupName: `/aws/lambda/languu-${stage}-tts`,
+        retention: RetentionDays.ONE_WEEK,
+      }),
       environment: {
         STAGE: stage,
-        AWS_REGION: this.region,
         S3_BUCKET: mediaBucket.bucketName,
         DYNAMODB_TABLE: jobsTable.tableName,
       },
     });
-    ttsFunction.addToRolePolicy(...getLambdaPolicyStatements(mediaBucket.bucketName, jobsTable.tableName));
+    const ttsPolicies = getLambdaPolicyStatements(mediaBucket.bucketName, jobsTable.tableName);
+    ttsPolicies.forEach(policy => ttsFunction.addToRolePolicy(policy));
     mediaBucket.grantPut(ttsFunction);
 
     // HITL Lambda
@@ -134,15 +215,25 @@ export class LanguuStack extends Stack {
       functionName: `languu-${stage}-hitl`,
       timeout: Duration.minutes(5),
       memorySize: 256,
-      logRetention: RetentionDays.ONE_WEEK,
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        target: 'node20',
+        externalModules: ['aws-sdk'],
+      },
+      depsLockFilePath: path.join(__dirname, '../package-lock.json'),
+      logGroup: new LogGroup(this, `HITLLogGroup-${stage}`, {
+        logGroupName: `/aws/lambda/languu-${stage}-hitl`,
+        retention: RetentionDays.ONE_WEEK,
+      }),
       environment: {
         STAGE: stage,
-        AWS_REGION: this.region,
         S3_BUCKET: mediaBucket.bucketName,
         DYNAMODB_TABLE: jobsTable.tableName,
       },
     });
-    hitlFunction.addToRolePolicy(...getLambdaPolicyStatements(mediaBucket.bucketName, jobsTable.tableName));
+    const hitlPolicies = getLambdaPolicyStatements(mediaBucket.bucketName, jobsTable.tableName);
+    hitlPolicies.forEach(policy => hitlFunction.addToRolePolicy(policy));
     jobsTable.grantReadWriteData(hitlFunction);
 
     // Create API Gateway
@@ -150,6 +241,7 @@ export class LanguuStack extends Stack {
       translateFunction,
       transcribeFunction,
       transcribeUploadFunction,
+      transcribeStatusFunction,
       interpretationFunction,
       ttsFunction,
       hitlFunction,
@@ -158,10 +250,28 @@ export class LanguuStack extends Stack {
 
     const api = createApiGateway(this, apiGatewayConfig);
 
+    // Create WebSocket API for real-time interpretation
+    const websocketApiConfig: WebSocketApiConfig = {
+      interpretationFunction,
+      stage,
+    };
+    const websocketApi = createWebSocketApi(this, websocketApiConfig);
+    
+    // Set WebSocket API endpoint as environment variable for Lambda
+    interpretationFunction.addEnvironment(
+      'WEBSOCKET_API_ENDPOINT',
+      websocketApi.api.apiEndpoint
+    );
+
     // Outputs
     new CfnOutput(this, 'ApiUrl', {
       value: api.url,
       description: 'API Gateway URL',
+    });
+
+    new CfnOutput(this, 'WebSocketApiUrl', {
+      value: websocketApi.url.replace('https://', 'wss://').replace('http://', 'ws://'),
+      description: 'WebSocket API URL for real-time interpretation',
     });
 
     new CfnOutput(this, 'S3Bucket', {

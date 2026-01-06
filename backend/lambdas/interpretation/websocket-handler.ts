@@ -1,5 +1,5 @@
-import { APIGatewayProxyWebsocketEventV2 } from 'aws-lambda';
-import { ApiGatewayManagementApiClient, PostToConnectionCommand } from '@aws-sdk/apigatewaymanagementapi';
+import { APIGatewayProxyWebsocketEventV2, Context } from 'aws-lambda';
+import { ApiGatewayManagementApiClient, PostToConnectionCommand } from '@aws-sdk/client-apigatewaymanagementapi';
 import { connectHandler, disconnectHandler, messageHandler } from './streaming';
 
 const endpoint = process.env.WEBSOCKET_API_ENDPOINT || '';
@@ -7,21 +7,24 @@ const apiGatewayClient = new ApiGatewayManagementApiClient({
   endpoint: endpoint.replace('wss://', 'https://').replace('ws://', 'http://'),
 });
 
-export const handler = async (event: APIGatewayProxyWebsocketEventV2) => {
+export const handler = async (
+  event: APIGatewayProxyWebsocketEventV2,
+  context: Context
+): Promise<{ statusCode: number; body?: string }> => {
   const routeKey = event.requestContext.routeKey;
   const connectionId = event.requestContext.connectionId!;
 
   try {
     switch (routeKey) {
       case '$connect':
-        return await connectHandler(event);
+        return await connectHandler(event, context);
       
       case '$disconnect':
-        return await disconnectHandler(event);
+        return await disconnectHandler(event, context);
       
       case '$default':
       case 'processMessage':
-        return await messageHandler(event);
+        return await messageHandler(event, context);
       
       default:
         return { statusCode: 404, body: JSON.stringify({ error: 'Route not found' }) };

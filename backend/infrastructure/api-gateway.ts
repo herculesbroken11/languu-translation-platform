@@ -11,6 +11,7 @@ export interface ApiGatewayConfig {
   translateFunction: IFunction;
   transcribeFunction: IFunction;
   transcribeUploadFunction: IFunction;
+  transcribeStatusFunction: IFunction;
   interpretationFunction: IFunction;
   ttsFunction: IFunction;
   hitlFunction: IFunction;
@@ -34,52 +35,37 @@ export function createApiGateway(
     },
   });
 
+  // Use proxy integration to pass through all headers from Lambda (including CORS)
+  const createProxyIntegration = (fn: IFunction) => {
+    return new LambdaIntegration(fn, { proxy: true });
+  };
+
   // Translate endpoint
   const translateResource = api.root.addResource('translate');
-  translateResource.addMethod(
-    'POST',
-    new LambdaIntegration(config.translateFunction)
-  );
-  translateResource.addMethod('OPTIONS', new LambdaIntegration(config.translateFunction));
+  translateResource.addMethod('POST', createProxyIntegration(config.translateFunction));
 
   // Transcribe endpoints
   const transcribeResource = api.root.addResource('transcribe');
-  transcribeResource.addMethod(
-    'POST',
-    new LambdaIntegration(config.transcribeFunction)
-  );
-  transcribeResource.addMethod('OPTIONS', new LambdaIntegration(config.transcribeFunction));
+  transcribeResource.addMethod('POST', createProxyIntegration(config.transcribeFunction));
 
   const transcribeUploadResource = transcribeResource.addResource('upload');
-  transcribeUploadResource.addMethod(
-    'POST',
-    new LambdaIntegration(config.transcribeUploadFunction)
-  );
-  transcribeUploadResource.addMethod('OPTIONS', new LambdaIntegration(config.transcribeUploadFunction));
+  transcribeUploadResource.addMethod('POST', createProxyIntegration(config.transcribeUploadFunction));
+
+  const transcribeStatusResource = transcribeResource.addResource('status');
+  const transcribeStatusJobResource = transcribeStatusResource.addResource('{jobId}');
+  transcribeStatusJobResource.addMethod('GET', createProxyIntegration(config.transcribeStatusFunction));
 
   // Interpretation endpoint
   const interpretationResource = api.root.addResource('interpretation');
-  interpretationResource.addMethod(
-    'GET',
-    new LambdaIntegration(config.interpretationFunction)
-  );
-  interpretationResource.addMethod('OPTIONS', new LambdaIntegration(config.interpretationFunction));
+  interpretationResource.addMethod('GET', createProxyIntegration(config.interpretationFunction));
 
   // TTS endpoint
   const ttsResource = api.root.addResource('tts');
-  ttsResource.addMethod(
-    'POST',
-    new LambdaIntegration(config.ttsFunction)
-  );
-  ttsResource.addMethod('OPTIONS', new LambdaIntegration(config.ttsFunction));
+  ttsResource.addMethod('POST', createProxyIntegration(config.ttsFunction));
 
   // HITL endpoint
   const hitlResource = api.root.addResource('hitl');
-  hitlResource.addMethod(
-    'POST',
-    new LambdaIntegration(config.hitlFunction)
-  );
-  hitlResource.addMethod('OPTIONS', new LambdaIntegration(config.hitlFunction));
+  hitlResource.addMethod('POST', createProxyIntegration(config.hitlFunction));
 
   return api;
 }
