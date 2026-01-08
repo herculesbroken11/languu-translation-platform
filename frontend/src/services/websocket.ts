@@ -25,30 +25,47 @@ export class InterpretationWebSocket {
         });
 
         const wsUrl = `${this.url}?${params.toString()}`;
+        console.log('=== Creating WebSocket ===');
+        console.log('Full URL:', wsUrl);
+        console.log('Base URL:', this.url);
+        console.log('Query Params:', params.toString());
+        
         this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {
-          console.log('WebSocket connected');
+          console.log('✅ WebSocket OPENED successfully');
+          console.log('Ready State:', this.ws?.readyState);
+          console.log('URL:', this.ws?.url);
           this.reconnectAttempts = 0;
           resolve();
         };
 
         this.ws.onmessage = (event) => {
+          console.log('📨 WebSocket message received:', event.data);
           try {
             const message: WebSocketMessage = JSON.parse(event.data);
+            console.log('Parsed message:', message);
             this.handleMessage(message);
           } catch (error) {
-            console.error('Error parsing WebSocket message:', error);
+            console.error('❌ Error parsing WebSocket message:', error);
+            console.error('Raw data:', event.data);
           }
         };
 
         this.ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
+          console.error('❌ WebSocket ERROR event');
+          console.error('Error:', error);
+          console.error('Ready State:', this.ws?.readyState);
+          console.error('URL:', this.ws?.url);
           reject(error);
         };
 
-        this.ws.onclose = () => {
-          console.log('WebSocket disconnected');
+        this.ws.onclose = (event) => {
+          console.log('🔌 WebSocket CLOSED');
+          console.log('Close Code:', event.code);
+          console.log('Close Reason:', event.reason);
+          console.log('Was Clean:', event.wasClean);
+          console.log('Ready State:', this.ws?.readyState);
           this.attemptReconnect(sourceLanguage, targetLanguage, sessionId);
         };
       } catch (error) {
@@ -98,11 +115,23 @@ export class InterpretationWebSocket {
   }
 
   sendAudioChunk(audioData: ArrayBuffer) {
+    if (!this.isConnected()) {
+      console.warn('Cannot send audio chunk: WebSocket not connected');
+      console.warn('Ready State:', this.ws?.readyState);
+      return;
+    }
+    
     // Convert audio to base64 for transmission
     const base64 = btoa(
       new Uint8Array(audioData)
         .reduce((data, byte) => data + String.fromCharCode(byte), '')
     );
+    
+    console.log('Sending audio chunk:', {
+      audioDataSize: audioData.byteLength,
+      base64Length: base64.length,
+      isConnected: this.isConnected(),
+    });
     
     this.send({
       type: 'audio-chunk',

@@ -19,14 +19,20 @@ export const connectHandler = async (
   event: APIGatewayProxyWebsocketEventV2,
   context: Context
 ): Promise<{ statusCode: number }> => {
+  console.log('=== Connect Handler Started ===');
   const connectionId = event.requestContext.connectionId!;
+  console.log('Connection ID:', connectionId);
   
   // Parse query string from event (WebSocket V2 may have queryString in requestContext)
-  const queryString = (event as any).queryStringParameters || {};
+  // For WebSocket V2, query parameters are in event.requestContext or event.queryStringParameters
+  const queryString = event.queryStringParameters || (event as any).requestContext?.queryStringParameters || {};
+  console.log('Query String:', JSON.stringify(queryString));
   
   const sourceLanguage = (queryString.sourceLanguage as string) || 'en';
   const targetLanguage = (queryString.targetLanguage as string) || 'es';
   const sessionId = (queryString.sessionId as string) || `session-${Date.now()}`;
+  
+  console.log('Languages:', { sourceLanguage, targetLanguage, sessionId });
 
   activeConnections.set(connectionId, {
     sourceLanguage,
@@ -35,17 +41,19 @@ export const connectHandler = async (
   });
 
   // Store session in DynamoDB
+  // Note: Using sessionId as jobId since the table requires jobId as partition key
   try {
     await dynamoDocClient.send(new PutCommand({
       TableName: resourceNames.dynamoTable,
       Item: {
-        pk: `SESSION#${sessionId}`,
-        sk: `CONNECTION#${connectionId}`,
+        jobId: sessionId, // Use sessionId as jobId (required partition key)
         connectionId,
         sourceLanguage,
         targetLanguage,
-        status: 'active',
+        sessionId,
+        status: 'connected',
         createdAt: new Date().toISOString(),
+        itemType: 'SESSION', // Add type to distinguish from other items
       },
     }));
   } catch (error) {
@@ -65,16 +73,25 @@ export const disconnectHandler = async (
   
   const connection = activeConnections.get(connectionId);
   if (connection) {
+    // Stop Transcribe Streaming
+    try {
+      const { stopStreamHandler } = await import('./transcribe-streaming');
+      stopStreamHandler(connectionId);
+    } catch (error) {
+      logger.error('Failed to stop streaming', error);
+    }
+
     // Update session status
     try {
       await dynamoDocClient.send(new PutCommand({
         TableName: resourceNames.dynamoTable,
         Item: {
-          pk: `SESSION#${connection.sessionId}`,
-          sk: `CONNECTION#${connectionId}`,
+          jobId: connection.sessionId, // Use sessionId as jobId (required partition key)
           connectionId,
+          sessionId: connection.sessionId,
           status: 'disconnected',
           disconnectedAt: new Date().toISOString(),
+          itemType: 'SESSION',
         },
       }));
     } catch (error) {
@@ -93,21 +110,90 @@ export const messageHandler = async (
   event: APIGatewayProxyWebsocketEventV2,
   context: Context
 ): Promise<{ statusCode: number; body?: string }> => {
+  console.log('=== Message Handler Started ===');
   const connectionId = event.requestContext.connectionId!;
+  console.log('Connection ID:', connectionId);
+  console.log('Event Body:', event.body);
+  
   const connection = activeConnections.get(connectionId);
+  console.log('Active Connection:', connection ? 'Found' : 'Not Found');
+  console.log('Active Connections Map Size:', activeConnections.size);
 
   if (!connection) {
+    console.warn('Message from unknown connection:', connectionId);
     logger.warn('Message from unknown connection', { connectionId });
     return { statusCode: 400, body: JSON.stringify({ error: 'Connection not found' }) };
   }
 
   try {
     const message = JSON.parse(event.body || '{}');
+    console.log('Parsed Message:', JSON.stringify(message, null, 2));
     
     if (message.type === 'audio-chunk') {
-      // Process audio chunk (in production, this would use Transcribe Streaming)
-      // For now, we'll process text directly if provided
-      if (message.text) {
+      // Process audio chunk with Transcribe Streaming
+      console.log('=== Processing Audio Chunk ===');
+      console.log('Connection ID:', connectionId);
+      console.log('Audio Data Length:', message.audioData?.length || 0);
+      console.log('Has Audio Data:', !!message.audioData);
+      
+      logger.info('Audio chunk received', { 
+        connectionId, 
+        audioDataLength: message.audioData?.length || 0,
+        hasAudioData: !!message.audioData
+      });
+      
+      if (!message.audioData) {
+        console.warn('Audio chunk missing audioData');
+        logger.warn('Audio chunk missing audioData', { connectionId });
+        return { statusCode: 400, body: JSON.stringify({ error: 'Audio data is required' }) };
+      }
+
+      try {
+        console.log('Getting or creating Transcribe Streaming handler...');
+        // Get or create Transcribe Streaming handler
+        const { sendToConnection } = await import('./websocket-handler');
+        const { getOrCreateStreamHandler } = await import('./transcribe-streaming');
+        
+        console.log('Creating handler with:', {
+          connectionId,
+          sourceLanguage: connection.sourceLanguage,
+          targetLanguage: connection.targetLanguage,
+          sessionId: connection.sessionId,
+        });
+        
+        const streamHandler = getOrCreateStreamHandler(
+          connectionId,
+          connection.sourceLanguage,
+          connection.targetLanguage,
+          connection.sessionId,
+          sendToConnection
+        );
+
+        console.log('Adding audio chunk to stream...');
+        // Add audio chunk to stream
+        streamHandler.addAudioChunk(message.audioData);
+        
+        console.log('Audio chunk added successfully');
+        logger.debug('Audio chunk added to stream', { connectionId });
+      } catch (error: any) {
+        console.error('=== Failed to process audio chunk ===');
+        console.error('Error:', error);
+        console.error('Error Message:', error.message);
+        console.error('Stack:', error.stack);
+        logger.error('Failed to process audio chunk', { connectionId, error: error.message, stack: error.stack });
+        const { sendToConnection } = await import('./websocket-handler');
+        await sendToConnection(connectionId, {
+          type: 'transcription-error',
+          error: `Failed to process audio: ${error.message}`,
+        });
+        return { statusCode: 500, body: JSON.stringify({ error: 'Failed to process audio chunk' }) };
+      }
+      
+    } else if (message.type === 'transcription') {
+      // Handle transcription result from Transcribe Streaming
+      // This is called by the stream handler when transcription results arrive
+      if (message.text && !message.isPartial) {
+        // Only process complete transcripts (not partial)
         await processTextSegment(
           connectionId,
           connection.sessionId,
@@ -115,9 +201,28 @@ export const messageHandler = async (
           connection.sourceLanguage,
           connection.targetLanguage
         );
+      } else if (message.text && message.isPartial) {
+        // Send partial transcript to frontend for real-time display
+        // Partial transcripts are already sent by transcribe-streaming handler
+        // This is just a fallback
+        const { sendToConnection } = await import('./websocket-handler');
+        await sendToConnection(connectionId, {
+          type: 'transcription',
+          text: message.text,
+          isPartial: true,
+        });
       }
     } else if (message.type === 'transcript') {
       // Direct transcript processing
+      await processTextSegment(
+        connectionId,
+        connection.sessionId,
+        message.text,
+        connection.sourceLanguage,
+        connection.targetLanguage
+      );
+    } else if (message.text) {
+      // Fallback: if text is provided directly, process it
       await processTextSegment(
         connectionId,
         connection.sessionId,
@@ -134,7 +239,7 @@ export const messageHandler = async (
   return { statusCode: 200 };
 };
 
-async function processTextSegment(
+export async function processTextSegment(
   connectionId: string,
   sessionId: string,
   text: string,
@@ -186,26 +291,27 @@ async function processTextSegment(
     const confidenceThreshold = parseFloat(process.env.CONFIDENCE_THRESHOLD || '0.7');
     needsHumanReview = confidence < confidenceThreshold;
 
-    // 4. Store segment in DynamoDB
-    const segmentId = `segment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    await dynamoDocClient.send(new PutCommand({
-      TableName: resourceNames.dynamoTable,
-      Item: {
-        pk: `SESSION#${sessionId}`,
-        sk: `SEGMENT#${segmentId}`,
-        segmentId,
-        text,
-        translatedText,
-        classification,
-        confidence,
-        needsHumanReview,
-        status: needsHumanReview ? 'pending_review' : 'approved',
-        timestamp: new Date().toISOString(),
-      },
-    }));
+        // 4. Store segment in DynamoDB
+        const segmentId = `segment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        await dynamoDocClient.send(new PutCommand({
+          TableName: resourceNames.dynamoTable,
+          Item: {
+            jobId: `${sessionId}-${segmentId}`, // Use sessionId-segmentId as jobId (required partition key)
+            segmentId,
+            sessionId,
+            text,
+            translatedText,
+            classification,
+            confidence,
+            needsHumanReview,
+            status: needsHumanReview ? 'pending_review' : 'approved',
+            timestamp: new Date().toISOString(),
+            itemType: 'SEGMENT',
+          },
+        }));
 
     // 5. Send result back to client (via API Gateway WebSocket)
-    // Note: In production, you'd use API Gateway Management API to send messages
+    const { sendToConnection } = await import('./websocket-handler');
     const result = {
       type: 'interpretation',
       segmentId,
@@ -217,12 +323,14 @@ async function processTextSegment(
       timestamp: new Date().toISOString(),
     };
 
+    // Send result back to client via WebSocket
+    await sendToConnection(connectionId, result);
+
     // If needs human review, trigger HITL workflow
     if (needsHumanReview) {
       await triggerHITLReview(segmentId, sessionId, text, translatedText);
     }
 
-    // Return result (in production, send via WebSocket)
     return result;
   } catch (error) {
     logger.error('Error processing text segment', error);

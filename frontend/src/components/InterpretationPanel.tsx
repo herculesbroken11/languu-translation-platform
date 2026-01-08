@@ -129,54 +129,141 @@ const InterpretationPanel: React.FC = () => {
       }
 
       // Set up WebSocket connection
-      const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'wss://api.languu.com';
+      // IMPORTANT: Use the deployed WebSocket URL from CDK output
+      // Default to the staging WebSocket URL from CDK deployment
+      const wsUrl = process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'wss://hipq484as4.execute-api.us-east-1.amazonaws.com/dev';
+      console.log('=== WebSocket Connection Debug ===');
+      console.log('WebSocket URL:', wsUrl);
+      console.log('NEXT_PUBLIC_WEBSOCKET_URL env var:', process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'NOT SET (using default)');
+      console.log('Source Language:', sourceLanguage);
+      console.log('Target Language:', targetLanguage);
+      console.log('Session ID:', sessionIdRef.current);
+      
       const ws = new InterpretationWebSocket(wsUrl);
       wsRef.current = ws;
 
       // Set up event listeners
       ws.on('interpretation', (data) => {
-        if (data.text) setTranscript((prev) => prev + ' ' + data.text);
+        console.log('Received interpretation:', data);
+        if (data.text) {
+          if (data.isPartial) {
+            // Partial transcript - update in real-time
+            setTranscript(data.text);
+          } else {
+            // Complete transcript - append
+            setTranscript((prev) => {
+              // Remove any partial text and add complete text
+              const cleanPrev = prev.replace(/\.\.\.$/, '').trim();
+              return cleanPrev ? `${cleanPrev} ${data.text}` : data.text;
+            });
+          }
+        }
         if (data.translatedText) setTranslatedText((prev) => prev + ' ' + data.translatedText);
         if (data.classification) setClassification(data.classification);
         if (data.confidence !== undefined) setConfidence(data.confidence);
         if (data.needsHumanReview !== undefined) setNeedsHumanReview(data.needsHumanReview);
       });
 
+      ws.on('transcription', (data) => {
+        console.log('Received transcription:', data);
+        if (data.text) {
+          if (data.isPartial) {
+            // Show partial transcript with ellipsis
+            setTranscript(data.text + '...');
+          } else {
+            // Complete transcript
+            setTranscript((prev) => {
+              // Remove partial text and add complete
+              const cleanPrev = prev.replace(/\.\.\.$/, '').trim();
+              return cleanPrev ? `${cleanPrev} ${data.text}` : data.text;
+            });
+          }
+        }
+      });
+
       ws.on('error', (data) => {
+        console.error('WebSocket error:', data);
         setError(data.message || 'Interpretation error');
       });
 
+      ws.on('transcription-error', (data) => {
+        console.error('Transcription error:', data);
+        setError(`Transcription error: ${data.error || 'Unknown error'}`);
+      });
+
       // Connect WebSocket
+      console.log('Connecting WebSocket...');
       await ws.connect(sourceLanguage, targetLanguage, sessionIdRef.current);
+      console.log('WebSocket connected successfully');
 
       // Set up audio processing for continuous capture
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       audioContextRef.current = audioContext;
 
-      const source = audioContext.createMediaStreamSource(stream);
-      const processor = audioContext.createScriptProcessor(4096, 1, 1);
-      processorRef.current = processor;
+      // Resample to 16kHz if needed (Transcribe Streaming requires 16kHz)
+      const targetSampleRate = 16000;
+      let audioWorkletNode: AudioWorkletNode | null = null;
+      let scriptProcessor: ScriptProcessorNode | null = null;
 
-      processor.onaudioprocess = (e) => {
-        if (ws.isConnected()) {
-          const inputData = e.inputBuffer.getChannelData(0);
-          const buffer = new ArrayBuffer(inputData.length * 2);
-          const view = new DataView(buffer);
-          
-          for (let i = 0; i < inputData.length; i++) {
-            const s = Math.max(-1, Math.min(1, inputData[i]));
-            view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+      // Try to use AudioWorklet (modern API) first, fallback to ScriptProcessor
+      try {
+        // For now, use ScriptProcessor (AudioWorklet requires separate file)
+        // Note: ScriptProcessor is deprecated but works for this use case
+        scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+        processorRef.current = scriptProcessor;
+
+        scriptProcessor.onaudioprocess = (e) => {
+          if (ws.isConnected()) {
+            const inputData = e.inputBuffer.getChannelData(0);
+            const sampleRate = audioContext.sampleRate;
+            
+            // Resample to 16kHz if needed
+            let processedData = inputData;
+            if (sampleRate !== targetSampleRate) {
+              const ratio = sampleRate / targetSampleRate;
+              const newLength = Math.floor(inputData.length / ratio);
+              processedData = new Float32Array(newLength);
+              for (let i = 0; i < newLength; i++) {
+                processedData[i] = inputData[Math.floor(i * ratio)];
+              }
+            }
+
+            // Convert to PCM 16-bit
+            const buffer = new ArrayBuffer(processedData.length * 2);
+            const view = new DataView(buffer);
+            
+            for (let i = 0; i < processedData.length; i++) {
+              const s = Math.max(-1, Math.min(1, processedData[i]));
+              view.setInt16(i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+            }
+
+            // Send audio chunk via WebSocket
+            if (ws.isConnected()) {
+              console.log('Sending audio chunk', { 
+                size: buffer.byteLength, 
+                sampleRate: audioContext.sampleRate,
+                processedLength: processedData.length,
+                isConnected: true
+              });
+              ws.sendAudioChunk(buffer);
+            } else {
+              console.warn('⚠️ Cannot send audio chunk: WebSocket not connected');
+              console.warn('WebSocket ready state:', wsRef.current?.ws?.readyState);
+              console.warn('WebSocket URL:', wsRef.current?.url);
+            }
           }
+        };
+      } catch (error) {
+        console.error('Failed to set up audio processing:', error);
+        setError('Failed to set up audio processing. Please try again.');
+        return;
+      }
 
-          // Send audio chunk via WebSocket
-          // In production, you'd use Amazon Transcribe Streaming here
-          // For now, we'll simulate by sending audio data
-          ws.sendAudioChunk(buffer);
-        }
-      };
-
-      source.connect(processor);
-      processor.connect(audioContext.destination);
+      const source = audioContext.createMediaStreamSource(stream);
+      if (scriptProcessor) {
+        source.connect(scriptProcessor);
+        scriptProcessor.connect(audioContext.destination);
+      }
 
       setIsActive(true);
     } catch (err) {
@@ -301,6 +388,15 @@ const InterpretationPanel: React.FC = () => {
         )}
       </div>
 
+      {isActive && !transcript && (
+        <div className="mb-4 p-4 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg">
+          <p className="font-medium mb-2">🎤 Listening...</p>
+          <p className="text-sm">
+            <strong>Status:</strong> WebSocket connected ✓ | Audio capture active ✓ | Transcribing...
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
         <div>
           <div className="flex justify-between items-center mb-2">
@@ -319,9 +415,9 @@ const InterpretationPanel: React.FC = () => {
             )}
           </div>
           <textarea
-            value={transcript}
+            value={transcript || ''}
             readOnly
-            placeholder="Transcript will appear here as you speak..."
+            placeholder={isActive ? 'Listening... Transcript will appear here as you speak...' : "Click 'Start Interpretation' to begin..."}
             className="w-full h-96 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 resize-none"
           />
         </div>

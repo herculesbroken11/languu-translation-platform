@@ -20,6 +20,7 @@ export const getLambdaPolicyStatements = (bucketName: string, tableName: string)
         'transcribe:StartTranscriptionJob',
         'transcribe:GetTranscriptionJob',
         'transcribe:ListTranscriptionJobs',
+        'transcribe:StartStreamTranscription',
       ],
       resources: ['*'],
     }),
