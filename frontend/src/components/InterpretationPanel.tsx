@@ -248,8 +248,8 @@ const InterpretationPanel: React.FC = () => {
               ws.sendAudioChunk(buffer);
             } else {
               console.warn('⚠️ Cannot send audio chunk: WebSocket not connected');
-              console.warn('WebSocket ready state:', wsRef.current?.ws?.readyState);
-              console.warn('WebSocket URL:', wsRef.current?.url);
+              console.warn('WebSocket ready state:', wsRef.current?.getReadyState());
+              console.warn('WebSocket URL:', wsRef.current?.getUrl());
             }
           }
         };

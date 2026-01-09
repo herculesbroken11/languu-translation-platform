@@ -129,7 +129,16 @@ export const transcribeAudio = async (
     await uploadFileToS3(uploadUrl, request.file, onUploadProgress);
 
     // Step 3: Call transcribe with fileKey (returns job ID immediately)
-    const response = await apiClient.post<{ success: boolean; data: { jobId: string; status: string; message?: string } }>(
+    const response = await apiClient.post<{ 
+      success: boolean; 
+      data: { 
+        jobId: string; 
+        status: string; 
+        message?: string;
+        transcript?: string;
+        translatedText?: string;
+      } 
+    }>(
       API_ENDPOINTS.TRANSCRIBE,
       {
         fileKey,
@@ -142,13 +151,13 @@ export const transcribeAudio = async (
       throw new Error('Invalid response from transcription service');
     }
 
-    const { jobId, status } = response.data.data;
+    const { jobId, status, transcript, translatedText } = response.data.data;
 
     // If job is already completed (unlikely but possible), return immediately
-    if (status === 'COMPLETED' && response.data.data.transcript) {
+    if (status === 'COMPLETED' && transcript) {
       return {
-        transcript: response.data.data.transcript,
-        translatedText: response.data.data.translatedText,
+        transcript,
+        translatedText,
         jobId,
       };
     }
