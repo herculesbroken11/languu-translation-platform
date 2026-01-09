@@ -108,11 +108,7 @@ export class InterpretationWebSocket {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);
     }
-    // Check if callback already exists to prevent duplicates
-    const existingCallbacks = this.listeners.get(event)!;
-    if (!existingCallbacks.includes(callback)) {
-      existingCallbacks.push(callback);
-    }
+    this.listeners.get(event)!.push(callback);
   }
 
   off(event: string, callback: (data: any) => void) {
