@@ -24,10 +24,12 @@ export class InterpretationWebSocket {
           ...(sessionId && { sessionId }),
         });
 
-        const wsUrl = `${this.url}?${params.toString()}`;
+        // Remove trailing slash from base URL if present
+        const baseUrl = this.url.endsWith('/') ? this.url.slice(0, -1) : this.url;
+        const wsUrl = `${baseUrl}?${params.toString()}`;
         console.log('=== Creating WebSocket ===');
         console.log('Full URL:', wsUrl);
-        console.log('Base URL:', this.url);
+        console.log('Base URL:', baseUrl);
         console.log('Query Params:', params.toString());
         
         this.ws = new WebSocket(wsUrl);
@@ -63,9 +65,22 @@ export class InterpretationWebSocket {
         this.ws.onclose = (event) => {
           console.log('🔌 WebSocket CLOSED');
           console.log('Close Code:', event.code);
-          console.log('Close Reason:', event.reason);
+          console.log('Close Reason:', event.reason || '(no reason provided)');
           console.log('Was Clean:', event.wasClean);
           console.log('Ready State:', this.ws?.readyState);
+          
+          // Close Code 1006 = Abnormal Closure (connection closed without proper handshake)
+          if (event.code === 1006) {
+            console.error('❌ Close Code 1006: Connection closed abnormally');
+            console.error('Possible causes:');
+            console.error('1. Lambda function returned an error in $connect handler');
+            console.error('2. Lambda function is not deployed or has syntax errors');
+            console.error('3. IAM permissions issue');
+            console.error('4. Check CloudWatch logs: /aws/lambda/languu-staging-interpretation');
+            reject(new Error(`WebSocket connection failed (Code: ${event.code}). Check Lambda function logs in CloudWatch.`));
+            return;
+          }
+          
           this.attemptReconnect(sourceLanguage, targetLanguage, sessionId);
         };
       } catch (error) {
@@ -93,7 +108,11 @@ export class InterpretationWebSocket {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);
     }
-    this.listeners.get(event)!.push(callback);
+    // Check if callback already exists to prevent duplicates
+    const existingCallbacks = this.listeners.get(event)!;
+    if (!existingCallbacks.includes(callback)) {
+      existingCallbacks.push(callback);
+    }
   }
 
   off(event: string, callback: (data: any) => void) {

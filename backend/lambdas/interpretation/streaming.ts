@@ -115,9 +115,50 @@ export const messageHandler = async (
   console.log('Connection ID:', connectionId);
   console.log('Event Body:', event.body);
   
-  const connection = activeConnections.get(connectionId);
+  let connection = activeConnections.get(connectionId);
   console.log('Active Connection:', connection ? 'Found' : 'Not Found');
   console.log('Active Connections Map Size:', activeConnections.size);
+
+  // If not in memory, create with defaults (fallback for when $connect wasn't called)
+  // NOTE: This is a workaround. The proper fix is to ensure $connect route is configured in API Gateway
+  if (!connection) {
+    console.warn('⚠️ Connection not found in memory - $connect handler may not have been called');
+    console.warn('⚠️ Creating default connection as fallback');
+    
+    // Create default connection
+    // In production, these should come from $connect query parameters
+    const sessionId = `session-${Date.now()}`;
+    connection = {
+      sourceLanguage: 'en', // Default - should come from $connect
+      targetLanguage: 'es', // Default - should come from $connect  
+      sessionId,
+    };
+    
+    // Store in memory
+    activeConnections.set(connectionId, connection);
+    console.log('Created default connection:', connection);
+    
+    // Store in DynamoDB for persistence
+    try {
+      await dynamoDocClient.send(new PutCommand({
+        TableName: resourceNames.dynamoTable,
+        Item: {
+          jobId: sessionId,
+          connectionId,
+          sourceLanguage: connection.sourceLanguage,
+          targetLanguage: connection.targetLanguage,
+          sessionId,
+          status: 'active',
+          createdAt: new Date().toISOString(),
+          itemType: 'SESSION',
+        },
+      }));
+      console.log('Stored connection in DynamoDB');
+    } catch (dbError) {
+      console.error('Failed to store connection in DynamoDB:', dbError);
+      // Continue anyway - we have the connection in memory
+    }
+  }
 
   if (!connection) {
     console.warn('Message from unknown connection:', connectionId);

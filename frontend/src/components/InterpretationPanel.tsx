@@ -139,11 +139,17 @@ const InterpretationPanel: React.FC = () => {
       console.log('Target Language:', targetLanguage);
       console.log('Session ID:', sessionIdRef.current);
       
+      // Clean up any existing WebSocket connection first
+      if (wsRef.current) {
+        wsRef.current.disconnect();
+        wsRef.current = null;
+      }
+
       const ws = new InterpretationWebSocket(wsUrl);
       wsRef.current = ws;
 
-      // Set up event listeners
-      ws.on('interpretation', (data) => {
+      // Set up event listeners (create new callback functions each time to avoid duplicates)
+      const interpretationHandler = (data: any) => {
         console.log('Received interpretation:', data);
         if (data.text) {
           if (data.isPartial) {
@@ -162,34 +168,51 @@ const InterpretationPanel: React.FC = () => {
         if (data.classification) setClassification(data.classification);
         if (data.confidence !== undefined) setConfidence(data.confidence);
         if (data.needsHumanReview !== undefined) setNeedsHumanReview(data.needsHumanReview);
-      });
+      };
+      ws.on('interpretation', interpretationHandler);
 
-      ws.on('transcription', (data) => {
+      const transcriptionHandler = (data: any) => {
         console.log('Received transcription:', data);
         if (data.text) {
           if (data.isPartial) {
-            // Show partial transcript with ellipsis
-            setTranscript(data.text + '...');
-          } else {
-            // Complete transcript
+            // Show partial transcript with ellipsis (replace previous partial)
             setTranscript((prev) => {
-              // Remove partial text and add complete
+              // Only update if this is a new or longer partial transcript
+              const prevWithoutEllipsis = prev.replace(/\.\.\.$/, '').trim();
+              // If the new partial is longer or different, update it
+              if (data.text.length > prevWithoutEllipsis.length || !prevWithoutEllipsis) {
+                return data.text + '...';
+              }
+              return prev; // Keep previous if new one is shorter (refinement)
+            });
+          } else {
+            // Complete transcript - only append if it's new
+            setTranscript((prev) => {
               const cleanPrev = prev.replace(/\.\.\.$/, '').trim();
+              // Check if this transcript is already in the previous text
+              if (cleanPrev.includes(data.text)) {
+                // If it's already there, don't duplicate
+                return cleanPrev;
+              }
+              // Only append if it's a new segment
               return cleanPrev ? `${cleanPrev} ${data.text}` : data.text;
             });
           }
         }
-      });
+      };
+      ws.on('transcription', transcriptionHandler);
 
-      ws.on('error', (data) => {
+      const errorHandler = (data: any) => {
         console.error('WebSocket error:', data);
         setError(data.message || 'Interpretation error');
-      });
+      };
+      ws.on('error', errorHandler);
 
-      ws.on('transcription-error', (data) => {
+      const transcriptionErrorHandler = (data: any) => {
         console.error('Transcription error:', data);
         setError(`Transcription error: ${data.error || 'Unknown error'}`);
-      });
+      };
+      ws.on('transcription-error', transcriptionErrorHandler);
 
       // Connect WebSocket
       console.log('Connecting WebSocket...');
