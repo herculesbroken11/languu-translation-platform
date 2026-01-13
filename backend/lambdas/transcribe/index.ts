@@ -108,6 +108,7 @@ export const handler = async (
         ShowSpeakerLabels: false,
         ShowAlternatives: true, // Required when MaxAlternatives is set
         MaxAlternatives: 2, // Must be >= 2
+        // Timestamps are included by default in Transcribe output JSON
       },
     });
 
@@ -121,6 +122,7 @@ export const handler = async (
         fileKey: request.fileKey,
         sourceLanguage: request.sourceLanguage,
         targetLanguage: request.targetLanguage,
+        includeTimestamps: request.includeTimestamps || false,
         status: 'IN_PROGRESS',
         createdAt: new Date().toISOString(),
         transcriptionJobName: `languu-${jobId}`,

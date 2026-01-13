@@ -13,6 +13,7 @@ export interface TranscriptionRequest {
   fileKey: string;
   sourceLanguage: string;
   targetLanguage?: string;
+  includeTimestamps?: boolean;
 }
 
 export interface TranscriptionResponse {

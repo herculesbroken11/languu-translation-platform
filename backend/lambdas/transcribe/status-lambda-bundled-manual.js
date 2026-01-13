@@ -1,17 +1,87 @@
-import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
-import { TranscribeClient, GetTranscriptionJobCommand } from '@aws-sdk/client-transcribe';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { TranslateClient, TranslateTextCommand } from '@aws-sdk/client-translate';
-import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
-import { Logger } from '../../shared/utils/logger';
-import { createSuccessResponse, createErrorResponse, createCorsResponse } from '../../shared/utils/response';
-import { resourceNames, s3Client, translateClient, transcribeClient, dynamoDocClient } from '../../shared/config/aws';
+// ============================================================================
+// LANGUU Transcribe Status Lambda - Complete Bundled Code
+// ============================================================================
+// This is a bundled version for manual deployment to AWS Lambda
+// Paste this entire file into the Lambda console Code source editor
+// Function: languu-staging-transcribe-status
+// ============================================================================
 
-const logger = new Logger({ function: 'transcribe-status' });
+const { TranscribeClient, GetTranscriptionJobCommand } = require('@aws-sdk/client-transcribe');
+const { S3Client, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { TranslateClient, TranslateTextCommand } = require('@aws-sdk/client-translate');
+const { DynamoDBDocumentClient, GetCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 
-export const handler = async (
-  event: APIGatewayProxyEvent
-): Promise<APIGatewayProxyResult> => {
+// ============================================================================
+// Configuration
+// ============================================================================
+const region = process.env.AWS_REGION || 'us-east-1';
+const stage = process.env.STAGE || 'staging';
+const s3Bucket = process.env.S3_BUCKET || `languu-${stage}-media`;
+const dynamoTable = process.env.DYNAMODB_TABLE || `languu-${stage}-jobs`;
+
+// AWS Clients
+const s3Client = new S3Client({ region });
+const translateClient = new TranslateClient({ region });
+const transcribeClient = new TranscribeClient({ region });
+const dynamoDBClient = new DynamoDBClient({ region });
+const dynamoDocClient = DynamoDBDocumentClient.from(dynamoDBClient);
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+const defaultHeaders = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT',
+};
+
+function createResponse(statusCode, body, headers = {}) {
+  return {
+    statusCode,
+    headers: {
+      ...defaultHeaders,
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  };
+}
+
+function createSuccessResponse(data) {
+  return createResponse(200, { success: true, data });
+}
+
+function createErrorResponse(statusCode, message, error) {
+  return createResponse(statusCode, {
+    success: false,
+    message,
+    ...(error && { error: error instanceof Error ? error.message : String(error) }),
+  });
+}
+
+function createCorsResponse() {
+  return createResponse(200, {}, {});
+}
+
+// Simple logger
+const logger = {
+  info: (message, data) => console.log(JSON.stringify({ level: 'INFO', message, ...data, timestamp: new Date().toISOString() })),
+  warn: (message, data) => console.warn(JSON.stringify({ level: 'WARN', message, ...data, timestamp: new Date().toISOString() })),
+  error: (message, error, data) => console.error(JSON.stringify({ 
+    level: 'ERROR', 
+    message, 
+    error: error instanceof Error ? error.message : String(error),
+    stack: error instanceof Error ? error.stack : undefined,
+    ...data, 
+    timestamp: new Date().toISOString() 
+  })),
+};
+
+// ============================================================================
+// Main Handler
+// ============================================================================
+exports.handler = async (event) => {
   // Handle CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return createCorsResponse();
@@ -26,7 +96,7 @@ export const handler = async (
 
     // Get job metadata from DynamoDB
     const getCommand = new GetCommand({
-      TableName: resourceNames.dynamoTable,
+      TableName: dynamoTable,
       Key: {
         jobId, // Partition key - must match table schema
       },
@@ -55,7 +125,7 @@ export const handler = async (
       
       // Get transcript from S3
       const getObjectCommand = new GetObjectCommand({
-        Bucket: resourceNames.s3Bucket,
+        Bucket: s3Bucket,
         Key: outputKey,
       });
 
@@ -71,9 +141,8 @@ export const handler = async (
         // If timestamps are requested, format transcript with timestamps
         if (jobMetadata.includeTimestamps && transcriptJson.results.items) {
           const items = transcriptJson.results.items || [];
-          const timestampedItems = items.map((item: any) => {
+          const timestampedItems = items.map((item) => {
             const startTime = item.start_time ? parseFloat(item.start_time) : 0;
-            const endTime = item.end_time ? parseFloat(item.end_time) : 0;
             const hours = Math.floor(startTime / 3600);
             const minutes = Math.floor((startTime % 3600) / 60);
             const seconds = Math.floor(startTime % 60);
@@ -86,7 +155,7 @@ export const handler = async (
       }
 
       // Translate if target language is provided (only for TRANSLATE page, not TRANSCRIBE page)
-      let translatedText: string | undefined;
+      let translatedText;
       if (jobMetadata.targetLanguage && jobMetadata.targetLanguage !== jobMetadata.sourceLanguage && transcript) {
         try {
           const translateCommand = new TranslateTextCommand({
@@ -107,7 +176,7 @@ export const handler = async (
 
       // Update DynamoDB with completed status
       await dynamoDocClient.send(new UpdateCommand({
-        TableName: resourceNames.dynamoTable,
+        TableName: dynamoTable,
         Key: {
           jobId, // Partition key - must match table schema
         },

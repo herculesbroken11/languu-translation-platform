@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "tsc",
-    "deploy": "cd infrastructure && cdk deploy --all"
+    "deploy": "cd infrastructure && npx --node-options=--max-old-space-size=4096 cdk deploy --all"
   },
   "dependencies": {
     "@aws-sdk/client-apigatewaymanagementapi": "^3.490.0",

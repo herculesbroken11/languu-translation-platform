@@ -5,8 +5,9 @@ import { LANGUAGES } from '@/utils/constants';
 import { InterpretationWebSocket } from '@/services/websocket';
 
 const InterpretationPanel: React.FC = () => {
-  const [sourceLanguage, setSourceLanguage] = useState('en');
-  const [targetLanguage, setTargetLanguage] = useState('es');
+  const [language1, setLanguage1] = useState<string[]>(['en']);
+  const [language2, setLanguage2] = useState<string[]>(['es']);
+  const [autoDetect, setAutoDetect] = useState(true);
   const [isActive, setIsActive] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [translatedText, setTranslatedText] = useState('');
@@ -14,6 +15,7 @@ const InterpretationPanel: React.FC = () => {
   const [confidence, setConfidence] = useState<number | null>(null);
   const [needsHumanReview, setNeedsHumanReview] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useHumanBacked, setUseHumanBacked] = useState(false);
   
   const wsRef = useRef<InterpretationWebSocket | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -135,8 +137,14 @@ const InterpretationPanel: React.FC = () => {
       console.log('=== WebSocket Connection Debug ===');
       console.log('WebSocket URL:', wsUrl);
       console.log('NEXT_PUBLIC_WEBSOCKET_URL env var:', process.env.NEXT_PUBLIC_WEBSOCKET_URL || 'NOT SET (using default)');
-      console.log('Source Language:', sourceLanguage);
-      console.log('Target Language:', targetLanguage);
+      
+      // Determine source and target languages from language arrays
+      // For now, use first language from each array (can be enhanced later for multi-language support)
+      const sourceLang = language1.length > 0 ? language1[0] : 'en';
+      const targetLang = language2.length > 0 ? language2[0] : 'es';
+      
+      console.log('Language 1:', language1, 'Source Language:', sourceLang);
+      console.log('Language 2:', language2, 'Target Language:', targetLang);
       console.log('Session ID:', sessionIdRef.current);
       
       const ws = new InterpretationWebSocket(wsUrl);
@@ -191,9 +199,9 @@ const InterpretationPanel: React.FC = () => {
         setError(`Transcription error: ${data.error || 'Unknown error'}`);
       });
 
-      // Connect WebSocket
+      // Connect WebSocket (already determined sourceLang and targetLang above)
       console.log('Connecting WebSocket...');
-      await ws.connect(sourceLanguage, targetLanguage, sessionIdRef.current);
+      await ws.connect(sourceLang, targetLang, sessionIdRef.current);
       console.log('WebSocket connected successfully');
 
       // Set up audio processing for continuous capture
@@ -303,42 +311,113 @@ const InterpretationPanel: React.FC = () => {
     setIsActive(false);
   };
 
+  const handleLanguage1Change = (langCode: string, checked: boolean) => {
+    if (checked) {
+      setLanguage1([...language1, langCode]);
+    } else {
+      setLanguage1(language1.filter(l => l !== langCode));
+    }
+  };
+
+  const handleLanguage2Change = (langCode: string, checked: boolean) => {
+    if (checked) {
+      setLanguage2([...language2, langCode]);
+    } else {
+      setLanguage2(language2.filter(l => l !== langCode));
+    }
+  };
+
   return (
     <div className="w-full max-w-6xl">
-      <div className="mb-6 flex gap-4 items-end">
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Source language
-          </label>
-          <select
-            value={sourceLanguage}
-            onChange={(e) => setSourceLanguage(e.target.value)}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 mb-4">
+          <input
+            type="checkbox"
+            id="autoDetect"
+            checked={autoDetect}
+            onChange={(e) => setAutoDetect(e.target.checked)}
             disabled={isActive}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
-          >
-            {LANGUAGES.filter((lang) => lang.code !== 'auto').map((lang) => (
-              <option key={lang.code} value={lang.code}>
-                {lang.name}
-              </option>
-            ))}
-          </select>
+            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 disabled:bg-gray-100"
+          />
+          <label htmlFor="autoDetect" className="text-sm font-medium text-gray-700">
+            Auto Detect Languages
+          </label>
         </div>
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Target language
-          </label>
-          <select
-            value={targetLanguage}
-            onChange={(e) => setTargetLanguage(e.target.value)}
+        
+        <div className="flex gap-4 items-start">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Language 1
+            </label>
+            <div className="border border-gray-300 rounded-lg p-3 max-h-32 overflow-y-auto">
+              {LANGUAGES.filter((lang) => lang.code !== 'auto').map((lang) => (
+                <div key={lang.code} className="flex items-center gap-2 mb-2">
+                  <input
+                    type="checkbox"
+                    id={`lang1-${lang.code}`}
+                    checked={language1.includes(lang.code)}
+                    onChange={(e) => handleLanguage1Change(lang.code, e.target.checked)}
+                    disabled={isActive || autoDetect}
+                    className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 disabled:bg-gray-100"
+                  />
+                  <label htmlFor={`lang1-${lang.code}`} className="text-sm text-gray-700">
+                    {lang.name}
+                  </label>
+                </div>
+              ))}
+            </div>
+            {language1.length > 0 && (
+              <p className="text-xs text-gray-500 mt-2">
+                Selected: {language1.map(l => LANGUAGES.find(lang => lang.code === l)?.name).join(' & ')}
+              </p>
+            )}
+          </div>
+          
+          <div className="flex items-center text-2xl font-bold text-gray-400 pt-6">
+            &lt;&gt;
+          </div>
+          
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Language 2
+            </label>
+            <div className="border border-gray-300 rounded-lg p-3 max-h-32 overflow-y-auto">
+              {LANGUAGES.filter((lang) => lang.code !== 'auto').map((lang) => (
+                <div key={lang.code} className="flex items-center gap-2 mb-2">
+                  <input
+                    type="checkbox"
+                    id={`lang2-${lang.code}`}
+                    checked={language2.includes(lang.code)}
+                    onChange={(e) => handleLanguage2Change(lang.code, e.target.checked)}
+                    disabled={isActive || autoDetect}
+                    className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 disabled:bg-gray-100"
+                  />
+                  <label htmlFor={`lang2-${lang.code}`} className="text-sm text-gray-700">
+                    {lang.name}
+                  </label>
+                </div>
+              ))}
+            </div>
+            {language2.length > 0 && (
+              <p className="text-xs text-gray-500 mt-2">
+                Selected: {language2.map(l => LANGUAGES.find(lang => lang.code === l)?.name).join(' & ')}
+              </p>
+            )}
+          </div>
+        </div>
+        
+        <div className="mt-4 flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="useHumanBackedInterpretation"
+            checked={useHumanBacked}
+            onChange={(e) => setUseHumanBacked(e.target.checked)}
             disabled={isActive}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100"
-          >
-            {LANGUAGES.filter((lang) => lang.code !== 'auto').map((lang) => (
-              <option key={lang.code} value={lang.code}>
-                {lang.name}
-              </option>
-            ))}
-          </select>
+            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 disabled:bg-gray-100"
+          />
+          <label htmlFor="useHumanBackedInterpretation" className="text-sm font-medium text-gray-700">
+            Human Backed
+          </label>
         </div>
       </div>
 

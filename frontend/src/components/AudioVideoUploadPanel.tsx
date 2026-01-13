@@ -14,6 +14,8 @@ const AudioVideoUploadPanel: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [includeTimestamp, setIncludeTimestamp] = useState(false);
+  const [useHumanBacked, setUseHumanBacked] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,6 +67,7 @@ const AudioVideoUploadPanel: React.FC = () => {
           file,
           sourceLanguage: sourceLanguage === 'auto' ? 'auto' : sourceLanguage,
           targetLanguage,
+          includeTimestamps: includeTimestamp,
         },
         (progress) => {
           setUploadProgress(progress);
@@ -170,6 +173,45 @@ const AudioVideoUploadPanel: React.FC = () => {
           {statusMessage}
         </div>
       )}
+
+      <div className="mb-4 flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="includeTimestamp"
+            checked={includeTimestamp}
+            onChange={(e) => setIncludeTimestamp(e.target.checked)}
+            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+          />
+          <label htmlFor="includeTimestamp" className="text-sm font-medium text-gray-700">
+            With Timestamp
+          </label>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="withoutTimestamp"
+            checked={!includeTimestamp}
+            onChange={(e) => setIncludeTimestamp(!e.target.checked)}
+            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+          />
+          <label htmlFor="withoutTimestamp" className="text-sm font-medium text-gray-700">
+            Without Timestamp
+          </label>
+        </div>
+        <div className="flex items-center gap-2 ml-auto">
+          <input
+            type="checkbox"
+            id="useHumanBacked"
+            checked={useHumanBacked}
+            onChange={(e) => setUseHumanBacked(e.target.checked)}
+            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+          />
+          <label htmlFor="useHumanBacked" className="text-sm font-medium text-gray-700">
+            Human Backed
+          </label>
+        </div>
+      </div>
 
       <div className="mb-4">
         <button

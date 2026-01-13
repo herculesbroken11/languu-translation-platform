@@ -57,6 +57,7 @@ const TTSPanel: React.FC = () => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useHumanBacked, setUseHumanBacked] = useState(false);
 
   const availableVoices = VOICES[language] || VOICES.en;
 
@@ -92,86 +93,109 @@ const TTSPanel: React.FC = () => {
   };
 
   return (
-    <div className="w-full max-w-4xl">
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Language
-        </label>
-        <select
-          value={language}
-          onChange={(e) => handleLanguageChange(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-        >
-          {LANGUAGES.filter((lang) => lang.code !== 'auto' && VOICES[lang.code]).map((lang) => (
-            <option key={lang.code} value={lang.code}>
-              {lang.name}
-            </option>
-          ))}
-        </select>
-      </div>
+    <div className="w-full">
+      <div className="grid grid-cols-12 gap-6">
+        {/* Left column - Input controls */}
+        <div className="col-span-12 lg:col-span-10">
+          <div className="mb-6 flex items-center gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Language
+              </label>
+              <select
+                value={language}
+                onChange={(e) => handleLanguageChange(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              >
+                {LANGUAGES.filter((lang) => lang.code !== 'auto' && VOICES[lang.code]).map((lang) => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Voice
+              </label>
+              <select
+                value={voiceId}
+                onChange={(e) => setVoiceId(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+              >
+                {availableVoices.map((voice) => (
+                  <option key={voice.id} value={voice.id}>
+                    {voice.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2 pt-6">
+              <input
+                type="checkbox"
+                id="useHumanBackedTTS"
+                checked={useHumanBacked}
+                onChange={(e) => setUseHumanBacked(e.target.checked)}
+                className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+              />
+              <label htmlFor="useHumanBackedTTS" className="text-sm font-medium text-gray-700">
+                Human Backed
+              </label>
+            </div>
+          </div>
 
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Voice
-        </label>
-        <select
-          value={voiceId}
-          onChange={(e) => setVoiceId(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-        >
-          {availableVoices.map((voice) => (
-            <option key={voice.id} value={voice.id}>
-              {voice.name}
-            </option>
-          ))}
-        </select>
-      </div>
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Text to Synthesize
+            </label>
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Enter text to convert to speech..."
+              className="w-full h-48 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
+            />
+          </div>
 
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Text to Synthesize
-        </label>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Enter text to convert to speech..."
-          className="w-full h-48 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
-        />
-      </div>
+          {error && (
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
+              {error}
+            </div>
+          )}
 
-      {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
-          {error}
-        </div>
-      )}
-
-      <div className="mb-6">
-        <button
-          onClick={handleSynthesize}
-          disabled={isProcessing || !text.trim()}
-          className="px-8 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium text-lg"
-        >
-          {isProcessing ? 'Synthesizing...' : 'Synthesize Speech'}
-        </button>
-      </div>
-
-      {audioUrl && (
-        <div className="mt-8 p-6 bg-gray-50 rounded-lg">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Generated Audio</h3>
-          <audio controls className="w-full" src={audioUrl}>
-            Your browser does not support the audio element.
-          </audio>
-          <div className="mt-4">
-            <a
-              href={audioUrl}
-              download="speech.mp3"
-              className="text-primary-600 hover:text-primary-700 underline text-sm"
+          <div className="mb-6">
+            <button
+              onClick={handleSynthesize}
+              disabled={isProcessing || !text.trim()}
+              className="px-8 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium text-lg"
             >
-              Download Audio
-            </a>
+              {isProcessing ? 'Synthesizing...' : 'Synthesize Speech'}
+            </button>
           </div>
         </div>
-      )}
+
+        {/* Right column - Results */}
+        <div className="col-span-12 lg:col-span-2">
+          <div className="sticky top-20">
+            {audioUrl && (
+              <div className="p-6 bg-gray-50 rounded-lg border border-gray-200">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Generated Audio</h3>
+                <audio controls className="w-full mb-4" src={audioUrl}>
+                  Your browser does not support the audio element.
+                </audio>
+                <div>
+                  <a
+                    href={audioUrl}
+                    download="speech.mp3"
+                    className="text-primary-600 hover:text-primary-700 underline text-sm"
+                  >
+                    Download Audio
+                  </a>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 };

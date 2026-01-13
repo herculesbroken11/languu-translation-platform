@@ -20,6 +20,7 @@ const TranslationPanel: React.FC<TranslationPanelProps> = ({
   const [detectedLanguage, setDetectedLanguage] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [useHumanBacked, setUseHumanBacked] = useState(false);
 
   const handleTranslate = async () => {
     if (!inputText.trim()) {
@@ -91,7 +92,7 @@ const TranslationPanel: React.FC<TranslationPanelProps> = ({
               ))}
             </select>
           </div>
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 flex flex-col gap-2">
             <label className="block text-sm font-medium text-gray-700 mb-2 invisible">
               Translate
             </label>
@@ -103,6 +104,18 @@ const TranslationPanel: React.FC<TranslationPanelProps> = ({
             >
               {isTranslating ? 'Translating...' : 'Translate'}
             </button>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="useHumanBackedTranslate"
+                checked={useHumanBacked}
+                onChange={(e) => setUseHumanBacked(e.target.checked)}
+                className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+              />
+              <label htmlFor="useHumanBackedTranslate" className="text-sm font-medium text-gray-700">
+                Human Backed
+              </label>
+            </div>
           </div>
         </div>
       </div>

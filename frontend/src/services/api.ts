@@ -144,6 +144,7 @@ export const transcribeAudio = async (
         fileKey,
         sourceLanguage: request.sourceLanguage,
         targetLanguage: request.targetLanguage,
+        includeTimestamps: request.includeTimestamps,
       }
     );
     

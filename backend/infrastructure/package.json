@@ -6,8 +6,8 @@
     "build": "tsc",
     "watch": "tsc -w",
     "cdk": "cdk",
-    "deploy": "cdk deploy",
-    "synth": "cdk synth",
+    "deploy": "npx --node-options=--max-old-space-size=4096 cdk deploy",
+    "synth": "npx --node-options=--max-old-space-size=4096 cdk synth",
     "diff": "cdk diff"
   },
   "dependencies": {
