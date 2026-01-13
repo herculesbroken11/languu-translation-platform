@@ -94,7 +94,7 @@ const TTSPanel: React.FC = () => {
 
   return (
     <div className="w-full">
-      <div className="grid grid-cols-12 gap-6">
+      <div className="grid grid-cols-12 gap-6 items-start">
         {/* Left column - Input controls */}
         <div className="col-span-12 lg:col-span-7">
           <div className="mb-6 flex items-center gap-4">
@@ -175,7 +175,10 @@ const TTSPanel: React.FC = () => {
 
         {/* Right column - Results */}
         <div className="col-span-12 lg:col-span-5">
-          <div className="sticky top-20">
+          <div className="lg:sticky lg:top-20">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Audio Preview
+            </label>
             {audioUrl ? (
               <div className="p-8 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 shadow-lg">
                 <div className="flex items-center gap-3 mb-6">
@@ -203,16 +206,15 @@ const TTSPanel: React.FC = () => {
                 </a>
               </div>
             ) : (
-              <div className="p-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-200">
-                <div className="text-center">
-                  <div className="mb-6 flex justify-center">
-                    <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center">
-                      <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border-2 border-gray-200 h-48 flex items-center justify-center">
+                <div className="text-center px-4">
+                  <div className="mb-4 flex justify-center">
+                    <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
+                      <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
                       </svg>
                     </div>
                   </div>
-                  <h3 className="text-base font-semibold text-gray-700 mb-2">Audio Preview</h3>
                   <p className="text-sm text-gray-500">
                     Your generated audio will appear here after synthesis
                   </p>

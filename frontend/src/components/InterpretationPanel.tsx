@@ -350,7 +350,7 @@ const InterpretationPanel: React.FC = () => {
               Language 1
             </label>
             <div className="border border-gray-300 rounded-lg p-3 max-h-32 overflow-y-auto">
-              {LANGUAGES.filter((lang) => lang.code !== 'auto').map((lang) => (
+            {LANGUAGES.filter((lang) => lang.code !== 'auto').map((lang) => (
                 <div key={lang.code} className="flex items-center gap-2 mb-2">
                   <input
                     type="checkbox"
@@ -361,10 +361,10 @@ const InterpretationPanel: React.FC = () => {
                     className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 disabled:bg-gray-100"
                   />
                   <label htmlFor={`lang1-${lang.code}`} className="text-sm text-gray-700">
-                    {lang.name}
+                {lang.name}
                   </label>
                 </div>
-              ))}
+            ))}
             </div>
             {language1.length > 0 && (
               <p className="text-xs text-gray-500 mt-2">
@@ -375,10 +375,10 @@ const InterpretationPanel: React.FC = () => {
           
           <div className="flex items-center text-2xl font-bold text-gray-400 pt-6">
             &lt;&gt;
-          </div>
+        </div>
           
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+        <div className="flex-1">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
               Language 2
             </label>
             <div className="border border-gray-300 rounded-lg p-3 max-h-32 overflow-y-auto">
@@ -394,7 +394,7 @@ const InterpretationPanel: React.FC = () => {
                   />
                   <label htmlFor={`lang2-${lang.code}`} className="text-sm text-gray-700">
                     {lang.name}
-                  </label>
+          </label>
                 </div>
               ))}
             </div>

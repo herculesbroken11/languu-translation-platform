@@ -92,29 +92,31 @@ const TranslationPanel: React.FC<TranslationPanelProps> = ({
               ))}
             </select>
           </div>
-          <div className="flex-shrink-0 flex flex-col gap-2">
-            <label className="block text-sm font-medium text-gray-700 mb-2 invisible">
-              Translate
+          <div className="flex-shrink-0 flex flex-col">
+            <label className="block text-sm font-medium text-gray-700 mb-2 h-[20px]">
+              &nbsp;
             </label>
-            <button
-              onClick={handleTranslate}
-              disabled={isTranslating || !inputText.trim()}
-              className="px-6 py-2 text-white rounded-lg hover:opacity-90 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium whitespace-nowrap"
-              style={{ backgroundColor: '#9333ea' }}
-            >
-              {isTranslating ? 'Translating...' : 'Translate'}
-            </button>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="useHumanBackedTranslate"
-                checked={useHumanBacked}
-                onChange={(e) => setUseHumanBacked(e.target.checked)}
-                className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-              />
-              <label htmlFor="useHumanBackedTranslate" className="text-sm font-medium text-gray-700">
-                Human Backed
-              </label>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={handleTranslate}
+                disabled={isTranslating || !inputText.trim()}
+                className="px-6 py-2 text-white rounded-lg hover:opacity-90 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium whitespace-nowrap"
+                style={{ backgroundColor: '#9333ea' }}
+              >
+                {isTranslating ? 'Translating...' : 'Translate'}
+              </button>
+              <div className="flex items-center gap-2 justify-center">
+                <input
+                  type="checkbox"
+                  id="useHumanBackedTranslate"
+                  checked={useHumanBacked}
+                  onChange={(e) => setUseHumanBacked(e.target.checked)}
+                  className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                />
+                <label htmlFor="useHumanBackedTranslate" className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                  Human Backed
+                </label>
+              </div>
             </div>
           </div>
         </div>
