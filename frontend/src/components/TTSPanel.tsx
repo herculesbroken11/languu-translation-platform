@@ -96,7 +96,7 @@ const TTSPanel: React.FC = () => {
     <div className="w-full">
       <div className="grid grid-cols-12 gap-6">
         {/* Left column - Input controls */}
-        <div className="col-span-12 lg:col-span-10">
+        <div className="col-span-12 lg:col-span-7">
           <div className="mb-6 flex items-center gap-4">
             <div className="flex-1">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -174,17 +174,19 @@ const TTSPanel: React.FC = () => {
         </div>
 
         {/* Right column - Results */}
-        <div className="col-span-12 lg:col-span-2">
+        <div className="col-span-12 lg:col-span-5">
           <div className="sticky top-20">
             {audioUrl ? (
-              <div className="p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 shadow-lg">
-                <div className="flex items-center gap-2 mb-4">
-                  <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                  </svg>
-                  <h3 className="text-lg font-semibold text-gray-900">Generated Audio</h3>
+              <div className="p-8 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200 shadow-lg">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900">Generated Audio</h3>
                 </div>
-                <div className="bg-white rounded-lg p-4 mb-4 shadow-sm">
+                <div className="bg-white rounded-lg p-6 mb-6 shadow-md">
                   <audio controls className="w-full" src={audioUrl}>
                     Your browser does not support the audio element.
                   </audio>
@@ -192,26 +194,26 @@ const TTSPanel: React.FC = () => {
                 <a
                   href={audioUrl}
                   download="speech.mp3"
-                  className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium text-sm shadow-md hover:shadow-lg"
+                  className="flex items-center justify-center gap-3 w-full px-6 py-4 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold text-base shadow-md hover:shadow-lg"
                 >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
                   Download Audio
                 </a>
               </div>
             ) : (
-              <div className="p-6 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-200">
+              <div className="p-8 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-200">
                 <div className="text-center">
-                  <div className="mb-4 flex justify-center">
-                    <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
-                      <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="mb-6 flex justify-center">
+                    <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center">
+                      <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
                       </svg>
                     </div>
                   </div>
-                  <h3 className="text-sm font-medium text-gray-600 mb-2">Audio Preview</h3>
-                  <p className="text-xs text-gray-500">
+                  <h3 className="text-base font-semibold text-gray-700 mb-2">Audio Preview</h3>
+                  <p className="text-sm text-gray-500">
                     Your generated audio will appear here after synthesis
                   </p>
                 </div>
