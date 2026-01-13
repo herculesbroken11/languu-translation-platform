@@ -69,19 +69,42 @@ export const handler = async (
         transcript = transcriptJson.results.transcripts[0]?.transcript || '';
         
         // If timestamps are requested, format transcript with timestamps
+        // Group items by sentences/phrases for cleaner output
         if (jobMetadata.includeTimestamps && transcriptJson.results.items) {
           const items = transcriptJson.results.items || [];
-          const timestampedItems = items.map((item: any) => {
-            const startTime = item.start_time ? parseFloat(item.start_time) : 0;
-            const endTime = item.end_time ? parseFloat(item.end_time) : 0;
-            const hours = Math.floor(startTime / 3600);
-            const minutes = Math.floor((startTime % 3600) / 60);
-            const seconds = Math.floor(startTime % 60);
-            const milliseconds = Math.floor((startTime % 1) * 1000);
-            const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')},${String(milliseconds).padStart(3, '0')}`;
-            return `[${timeStr}] ${item.alternatives[0]?.content || ''}`;
-          });
-          transcriptWithTimestamps = timestampedItems.join(' ');
+          const timestampedSegments: string[] = [];
+          let currentSegment = '';
+          let segmentStartTime: number | null = null;
+          
+          for (const item of items) {
+            const content = item.alternatives[0]?.content || '';
+            const punctuation = content.match(/[.,!?;:]/);
+            
+            // Start new segment if this is the first item or if we hit punctuation
+            if (segmentStartTime === null) {
+              segmentStartTime = item.start_time ? parseFloat(item.start_time) : 0;
+              currentSegment = content;
+            } else {
+              currentSegment += ' ' + content;
+            }
+            
+            // If we hit punctuation or end of items, finalize this segment
+            if (punctuation || item === items[items.length - 1]) {
+              if (segmentStartTime !== null) {
+                // Round up to nearest second (no milliseconds)
+                const roundedTime = Math.ceil(segmentStartTime);
+                const hours = Math.floor(roundedTime / 3600);
+                const minutes = Math.floor((roundedTime % 3600) / 60);
+                const seconds = Math.floor(roundedTime % 60);
+                const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+                timestampedSegments.push(`[${timeStr}] ${currentSegment.trim()}`);
+              }
+              currentSegment = '';
+              segmentStartTime = null;
+            }
+          }
+          
+          transcriptWithTimestamps = timestampedSegments.join(' ');
         }
       }
 
