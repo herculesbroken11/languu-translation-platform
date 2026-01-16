@@ -15,7 +15,7 @@ const InterpretationPanel: React.FC = () => {
   const [confidence, setConfidence] = useState<number | null>(null);
   const [needsHumanReview, setNeedsHumanReview] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [useHumanBacked, setUseHumanBacked] = useState(false);
+  const [audioUrls, setAudioUrls] = useState<string[]>([]); // Store TTS audio URLs
   
   const wsRef = useRef<InterpretationWebSocket | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -166,7 +166,19 @@ const InterpretationPanel: React.FC = () => {
             });
           }
         }
-        if (data.translatedText) setTranslatedText((prev) => prev + ' ' + data.translatedText);
+        if (data.translatedText) {
+          setTranslatedText((prev) => {
+            const newText = prev ? `${prev} ${data.translatedText}` : data.translatedText;
+            return newText;
+          });
+        }
+        if (data.audioUrl) {
+          // Add audio URL and auto-play if enabled
+          setAudioUrls((prev) => [...prev, data.audioUrl]);
+          // Auto-play the audio
+          const audio = new Audio(data.audioUrl);
+          audio.play().catch((err) => console.warn('Failed to auto-play audio:', err));
+        }
         if (data.classification) setClassification(data.classification);
         if (data.confidence !== undefined) setConfidence(data.confidence);
         if (data.needsHumanReview !== undefined) setNeedsHumanReview(data.needsHumanReview);
@@ -330,20 +342,6 @@ const InterpretationPanel: React.FC = () => {
   return (
     <div className="w-full max-w-6xl">
       <div className="mb-6">
-        <div className="flex items-center gap-2 mb-4">
-          <input
-            type="checkbox"
-            id="autoDetect"
-            checked={autoDetect}
-            onChange={(e) => setAutoDetect(e.target.checked)}
-            disabled={isActive}
-            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 disabled:bg-gray-100"
-          />
-          <label htmlFor="autoDetect" className="text-sm font-medium text-gray-700">
-            Auto Detect Languages
-          </label>
-        </div>
-        
         <div className="flex gap-4 items-start">
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -371,6 +369,19 @@ const InterpretationPanel: React.FC = () => {
                 Selected: {language1.map(l => LANGUAGES.find(lang => lang.code === l)?.name).join(' & ')}
               </p>
             )}
+            <div className="flex items-center gap-2 mt-4">
+              <input
+                type="checkbox"
+                id="autoDetect"
+                checked={autoDetect}
+                onChange={(e) => setAutoDetect(e.target.checked)}
+                disabled={isActive}
+                className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 disabled:bg-gray-100"
+              />
+              <label htmlFor="autoDetect" className="text-sm font-medium text-gray-700">
+                Auto Detect Languages
+              </label>
+            </div>
           </div>
           
           <div className="flex items-center text-2xl font-bold text-gray-400 pt-6">
@@ -404,20 +415,6 @@ const InterpretationPanel: React.FC = () => {
               </p>
             )}
           </div>
-        </div>
-        
-        <div className="mt-4 flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="useHumanBackedInterpretation"
-            checked={useHumanBacked}
-            onChange={(e) => setUseHumanBacked(e.target.checked)}
-            disabled={isActive}
-            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500 disabled:bg-gray-100"
-          />
-          <label htmlFor="useHumanBackedInterpretation" className="text-sm font-medium text-gray-700">
-            Human Backed
-          </label>
         </div>
       </div>
 
@@ -502,7 +499,7 @@ const InterpretationPanel: React.FC = () => {
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Live Translation
+            Live Interpretation
           </label>
           <textarea
             value={translatedText}
@@ -510,6 +507,16 @@ const InterpretationPanel: React.FC = () => {
             placeholder="Translation will appear here..."
             className="w-full h-96 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 resize-none"
           />
+          {audioUrls.length > 0 && (
+            <div className="mt-4 space-y-2">
+              <p className="text-sm font-medium text-gray-700">Audio Output:</p>
+              {audioUrls.map((url, index) => (
+                <audio key={index} controls className="w-full" src={url}>
+                  Your browser does not support the audio element.
+                </audio>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

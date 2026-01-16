@@ -258,3 +258,28 @@ export const submitForReview = async (
     throw handleError(error, 'Failed to submit for review.');
   }
 };
+
+// Email API
+export interface EmailRequest {
+  to?: string;
+  subject: string;
+  body: string;
+  originalFile?: string;
+  transcript?: string;
+  translation?: string;
+  fileUrl?: string;
+}
+
+export const sendEmail = async (request: EmailRequest): Promise<void> => {
+  try {
+    const response = await apiClient.post<{ success: boolean; data: { messageId: string } }>(
+      API_ENDPOINTS.EMAIL,
+      request
+    );
+    if (!response.data.success) {
+      throw new Error('Failed to send email');
+    }
+  } catch (error) {
+    throw handleError(error, 'Failed to send email. Please try again.');
+  }
+};

@@ -57,7 +57,6 @@ const TTSPanel: React.FC = () => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [useHumanBacked, setUseHumanBacked] = useState(false);
 
   const availableVoices = VOICES[language] || VOICES.en;
 
@@ -129,18 +128,6 @@ const TTSPanel: React.FC = () => {
                   </option>
                 ))}
               </select>
-            </div>
-            <div className="flex items-center gap-2 pt-6">
-              <input
-                type="checkbox"
-                id="useHumanBackedTTS"
-                checked={useHumanBacked}
-                onChange={(e) => setUseHumanBacked(e.target.checked)}
-                className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-              />
-              <label htmlFor="useHumanBackedTTS" className="text-sm font-medium text-gray-700">
-                Human Backed
-              </label>
             </div>
           </div>
 

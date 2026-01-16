@@ -6,16 +6,16 @@ const HomePage: React.FC = () => {
   return (
     <MainLayout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-12 gap-6">
-          {/* Main content area - 9.8/12 width (approximately 7.8/10) */}
-          <div className="col-span-12 lg:col-span-10">
+        <div className="flex gap-6">
+          {/* Main content area - 7.8/10 width (78%) */}
+          <div className="flex-1" style={{ width: '78%', maxWidth: '78%' }}>
             <h1 className="text-3xl font-bold text-gray-900 mb-6">Translate</h1>
             <TranslationTabs />
           </div>
 
-          {/* Right sidebar - 2.2/12 width (approximately 2.2/10) */}
-          <div className="hidden lg:block col-span-2">
-            <div className="sticky top-20">
+          {/* Right sidebar - 2.2/10 width (22%) */}
+          <div className="hidden lg:block" style={{ width: '22%', maxWidth: '22%', flexShrink: 0 }}>
+            <div className="sticky" style={{ top: '80px', maxHeight: 'calc(100vh - 120px)' }}>
               {/* Reserved for future content */}
             </div>
           </div>

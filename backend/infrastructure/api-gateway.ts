@@ -15,6 +15,7 @@ export interface ApiGatewayConfig {
   interpretationFunction: IFunction;
   ttsFunction: IFunction;
   hitlFunction: IFunction;
+  emailFunction: IFunction;
   stage: string;
 }
 
@@ -66,6 +67,10 @@ export function createApiGateway(
   // HITL endpoint
   const hitlResource = api.root.addResource('hitl');
   hitlResource.addMethod('POST', createProxyIntegration(config.hitlFunction));
+
+  // Email endpoint
+  const emailResource = api.root.addResource('email');
+  emailResource.addMethod('POST', createProxyIntegration(config.emailFunction));
 
   return api;
 }

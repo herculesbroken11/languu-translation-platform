@@ -1,10 +1,15 @@
 import { APIGatewayProxyWebsocketEventV2, Context } from 'aws-lambda';
 import { TranslateClient, TranslateTextCommand } from '@aws-sdk/client-translate';
 import { ComprehendClient, DetectSentimentCommand, ClassifyDocumentCommand } from '@aws-sdk/client-comprehend';
+import { PollyClient, SynthesizeSpeechCommand } from '@aws-sdk/client-polly';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { Logger } from '../../shared/utils/logger';
-import { awsConfig, translateClient, comprehendClient } from '../../shared/config/aws';
+import { awsConfig, translateClient, comprehendClient, pollyClient, s3Client } from '../../shared/config/aws';
 import { DynamoDBDocumentClient, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { dynamoDocClient, resourceNames } from '../../shared/config/aws';
+import { v4 as uuidv4 } from 'uuid';
 
 const logger = new Logger({ function: 'interpretation-streaming' });
 
@@ -28,11 +33,25 @@ export const connectHandler = async (
   const queryString = event.queryStringParameters || (event as any).requestContext?.queryStringParameters || {};
   console.log('Query String:', JSON.stringify(queryString));
   
-  const sourceLanguage = (queryString.sourceLanguage as string) || 'en';
-  const targetLanguage = (queryString.targetLanguage as string) || 'es';
+  let sourceLanguage = (queryString.sourceLanguage as string) || 'en';
+  let targetLanguage = (queryString.targetLanguage as string) || 'es';
   const sessionId = (queryString.sessionId as string) || `session-${Date.now()}`;
   
-  console.log('Languages:', { sourceLanguage, targetLanguage, sessionId });
+  // Ensure language codes are valid (remove any invalid characters, ensure lowercase)
+  sourceLanguage = sourceLanguage.toLowerCase().trim();
+  targetLanguage = targetLanguage.toLowerCase().trim();
+  
+  // Validate language codes (must be 2-5 characters, alphanumeric or hyphen)
+  if (!/^[a-z]{2}(-[a-z]{2})?$/.test(sourceLanguage)) {
+    console.warn(`Invalid sourceLanguage: ${sourceLanguage}, defaulting to 'en'`);
+    sourceLanguage = 'en';
+  }
+  if (!/^[a-z]{2}(-[a-z]{2})?$/.test(targetLanguage)) {
+    console.warn(`Invalid targetLanguage: ${targetLanguage}, defaulting to 'es'`);
+    targetLanguage = 'es';
+  }
+  
+  console.log('Languages (validated):', { sourceLanguage, targetLanguage, sessionId });
 
   activeConnections.set(connectionId, {
     sourceLanguage,
@@ -288,15 +307,108 @@ export async function processTextSegment(
   targetLanguage: string
 ) {
   try {
+    // Normalize language codes (ensure they're valid for AWS Translate)
+    const normalizedSource = sourceLanguage.toLowerCase().trim();
+    const normalizedTarget = targetLanguage.toLowerCase().trim();
+    
+    // Log for debugging
+    logger.info('Processing text segment', {
+      connectionId,
+      sessionId,
+      originalSource: sourceLanguage,
+      originalTarget: targetLanguage,
+      normalizedSource,
+      normalizedTarget,
+      textLength: text.length,
+    });
+    
     // 1. Translate text
     const translateCommand = new TranslateTextCommand({
       Text: text,
-      SourceLanguageCode: sourceLanguage,
-      TargetLanguageCode: targetLanguage,
+      SourceLanguageCode: normalizedSource,
+      TargetLanguageCode: normalizedTarget,
     });
 
-    const translateResult = await translateClient.send(translateCommand);
+    let translateResult;
+    try {
+      translateResult = await translateClient.send(translateCommand);
+    } catch (translateError: any) {
+      logger.error('Translation failed', {
+        error: translateError.message,
+        sourceLanguage: normalizedSource,
+        targetLanguage: normalizedTarget,
+        text: text.substring(0, 100), // Log first 100 chars
+      });
+      // If translation fails, return original text with error indicator
+      throw new Error(`Translation failed: ${translateError.message || 'Unknown error'}`);
+    }
+    
     const translatedText = translateResult.TranslatedText || '';
+    
+    // Log successful translation for debugging
+    logger.debug('Translation successful', {
+      sourceLanguage: normalizedSource,
+      targetLanguage: normalizedTarget,
+      originalLength: text.length,
+      translatedLength: translatedText.length,
+    });
+
+    // 1a. Synthesize speech for translated text (TTS)
+    let audioUrl: string | null = null;
+    try {
+      if (translatedText && translatedText.trim()) {
+        // Map target language to Polly voice (simplified - use first available voice)
+        const voiceMap: Record<string, string> = {
+          'en': 'Joanna',
+          'es': 'Lupe',
+          'fr': 'Lea',
+          'de': 'Vicki',
+          'it': 'Bianca',
+          'pt': 'Camila',
+          'ja': 'Mizuki',
+          'ko': 'Seoyeon',
+          'zh': 'Zhiyu',
+          'ar': 'Zeina',
+          'hi': 'Aditi',
+        };
+        
+        const voiceId = voiceMap[normalizedTarget] || 'Joanna';
+        
+        const synthesizeCommand = new SynthesizeSpeechCommand({
+          Text: translatedText,
+          OutputFormat: 'mp3',
+          VoiceId: voiceId as any,
+          Engine: 'neural',
+        });
+
+        const synthesizeResult = await pollyClient.send(synthesizeCommand);
+        
+        if (synthesizeResult.AudioStream) {
+          const audioBuffer = await synthesizeResult.AudioStream.transformToByteArray();
+          const audioKey = `interpretation/${sessionId}/${uuidv4()}.mp3`;
+          
+          await s3Client.send(new PutObjectCommand({
+            Bucket: resourceNames.s3Bucket,
+            Key: audioKey,
+            Body: Buffer.from(audioBuffer),
+            ContentType: 'audio/mpeg',
+          }));
+
+          // Generate presigned URL for audio
+          const getObjectCommand = new GetObjectCommand({
+            Bucket: resourceNames.s3Bucket,
+            Key: audioKey,
+          });
+          
+          audioUrl = await getSignedUrl(s3Client, getObjectCommand, { expiresIn: 3600 });
+          
+          logger.debug('TTS audio generated', { audioKey, sessionId });
+        }
+      }
+    } catch (ttsError) {
+      logger.warn('TTS synthesis failed, continuing without audio', { error: ttsError });
+      // Don't fail the whole process if TTS fails
+    }
 
     // 2. Classify text using Comprehend
     let classification = null;
@@ -361,6 +473,7 @@ export async function processTextSegment(
       classification,
       confidence,
       needsHumanReview,
+      audioUrl, // Include TTS audio URL if available
       timestamp: new Date().toISOString(),
     };
 

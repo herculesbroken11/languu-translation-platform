@@ -32,6 +32,13 @@ export const getLambdaPolicyStatements = (bucketName: string, tableName: string)
       resources: ['*'],
     }),
 
+    // SES permissions (for email function)
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['ses:SendEmail', 'ses:SendRawEmail'],
+      resources: ['*'],
+    }),
+
     // Comprehend permissions
     new PolicyStatement({
       effect: Effect.ALLOW,

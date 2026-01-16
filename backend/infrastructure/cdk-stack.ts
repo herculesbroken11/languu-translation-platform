@@ -177,6 +177,8 @@ export class LanguuStack extends Stack {
     );
     const interpretationPolicies = getLambdaPolicyStatements(mediaBucket.bucketName, jobsTable.tableName);
     interpretationPolicies.forEach(policy => interpretationFunction.addToRolePolicy(policy));
+    mediaBucket.grantPut(interpretationFunction); // Allow TTS audio uploads
+    jobsTable.grantReadWriteData(interpretationFunction);
 
     // TTS Lambda
     const ttsFunction = new NodejsFunction(this, `TTSFunction-${stage}`, {
@@ -236,6 +238,35 @@ export class LanguuStack extends Stack {
     hitlPolicies.forEach(policy => hitlFunction.addToRolePolicy(policy));
     jobsTable.grantReadWriteData(hitlFunction);
 
+    // Email Lambda
+    const emailFunction = new NodejsFunction(this, `EmailFunction-${stage}`, {
+      runtime: Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambdas/email/index.ts'),
+      functionName: `languu-${stage}-email`,
+      timeout: Duration.seconds(30),
+      memorySize: 256,
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        target: 'node20',
+        externalModules: ['aws-sdk'],
+      },
+      depsLockFilePath: path.join(__dirname, '../package-lock.json'),
+      logGroup: new LogGroup(this, `EmailLogGroup-${stage}`, {
+        logGroupName: `/aws/lambda/languu-${stage}-email`,
+        retention: RetentionDays.ONE_WEEK,
+      }),
+      environment: {
+        STAGE: stage,
+        TEAM_EMAIL: 'team@languu.com',
+        FROM_EMAIL: process.env.FROM_EMAIL || 'noreply@languu.com',
+      },
+    });
+    // Add SES permissions (already included in shared policies, but explicit for clarity)
+    const emailPolicies = getLambdaPolicyStatements(mediaBucket.bucketName, jobsTable.tableName);
+    emailPolicies.forEach(policy => emailFunction.addToRolePolicy(policy));
+
     // Create API Gateway
     const apiGatewayConfig: ApiGatewayConfig = {
       translateFunction,
@@ -245,6 +276,7 @@ export class LanguuStack extends Stack {
       interpretationFunction,
       ttsFunction,
       hitlFunction,
+      emailFunction,
       stage,
     };
 

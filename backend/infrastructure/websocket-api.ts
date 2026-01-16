@@ -33,6 +33,10 @@ export function createWebSocketApi(
     webSocketApi: api,
     stageName: config.stage === 'production' ? 'prod' : 'dev',
     autoDeploy: true,
+    throttle: {
+      rateLimit: 1000, // Messages per second
+      burstLimit: 2000, // Burst limit
+    },
   });
 
   // Grant API Gateway permission to invoke Lambda

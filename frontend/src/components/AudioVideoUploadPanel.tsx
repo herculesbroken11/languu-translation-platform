@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { transcribeAudio } from '@/services/api';
+import { transcribeAudio, sendEmail } from '@/services/api';
 import { LANGUAGES, SUPPORTED_AUDIO_FORMATS, SUPPORTED_VIDEO_FORMATS, MAX_FILE_SIZE } from '@/utils/constants';
+import EditableTranslation from './EditableTranslation';
 
 const AudioVideoUploadPanel: React.FC = () => {
   const [file, setFile] = useState<File | null>(null);
@@ -14,8 +15,6 @@ const AudioVideoUploadPanel: React.FC = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [includeTimestamp, setIncludeTimestamp] = useState(false);
-  const [useHumanBacked, setUseHumanBacked] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,7 +47,7 @@ const AudioVideoUploadPanel: React.FC = () => {
     }
   };
 
-  const handleTranscribe = async () => {
+  const handleTranscribe = async (withTimestamp: boolean) => {
     if (!file) {
       setError('Please select an audio or video file');
       return;
@@ -67,7 +66,7 @@ const AudioVideoUploadPanel: React.FC = () => {
           file,
           sourceLanguage: sourceLanguage === 'auto' ? 'auto' : sourceLanguage,
           targetLanguage,
-          includeTimestamps: includeTimestamp,
+          includeTimestamps: withTimestamp,
         },
         (progress) => {
           setUploadProgress(progress);
@@ -174,53 +173,33 @@ const AudioVideoUploadPanel: React.FC = () => {
         </div>
       )}
 
-      <div className="mb-4 flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="includeTimestamp"
-            checked={includeTimestamp}
-            onChange={(e) => setIncludeTimestamp(e.target.checked)}
-            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-          />
-          <label htmlFor="includeTimestamp" className="text-sm font-medium text-gray-700">
-            With Timestamp
-          </label>
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="withoutTimestamp"
-            checked={!includeTimestamp}
-            onChange={(e) => setIncludeTimestamp(!e.target.checked)}
-            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-          />
-          <label htmlFor="withoutTimestamp" className="text-sm font-medium text-gray-700">
-            Without Timestamp
-          </label>
-        </div>
-        <div className="flex items-center gap-2 ml-auto">
-          <input
-            type="checkbox"
-            id="useHumanBacked"
-            checked={useHumanBacked}
-            onChange={(e) => setUseHumanBacked(e.target.checked)}
-            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-          />
-          <label htmlFor="useHumanBacked" className="text-sm font-medium text-gray-700">
-            Human Backed
-          </label>
-        </div>
-      </div>
 
-      <div className="mb-4">
+      <div className="mb-4 flex items-center gap-4">
         <button
-          onClick={handleTranscribe}
+          onClick={() => handleTranscribe(true)}
           disabled={isProcessing || !file}
           className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
         >
           {isProcessing ? 'Processing...' : 'Transcribe & Translate'}
         </button>
+        <button
+          onClick={() => handleTranscribe(true)}
+          disabled={isProcessing || !file}
+          className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
+        >
+          With Timestamp
+        </button>
+        <button
+          onClick={() => handleTranscribe(false)}
+          disabled={isProcessing || !file}
+          className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
+        >
+          Without Timestamp
+        </button>
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-sm font-bold text-orange-600">HUMAN REVIEW</span>
+        </div>
+      </div>
         {isProcessing && uploadProgress > 0 && uploadProgress < 100 && (
           <div className="mt-2">
             <div className="w-full bg-gray-200 rounded-full h-2.5">
@@ -235,28 +214,77 @@ const AudioVideoUploadPanel: React.FC = () => {
       </div>
 
       {(transcript || translatedText) && (
-        <div className="grid grid-cols-2 gap-4 mt-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Transcript
-            </label>
-            <textarea
-              value={transcript}
-              readOnly
-              className="w-full h-64 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 resize-none"
-            />
+        <>
+          <div className="mb-4">
+            <button
+              onClick={async () => {
+                try {
+                  setIsProcessing(true);
+                  await sendEmail({
+                    subject: 'Translation Review Request',
+                    body: `Please review the following translation:\n\nFile: ${file?.name || 'Unknown'}\nSource Language: ${LANGUAGES.find(l => l.code === sourceLanguage)?.name || sourceLanguage}\nTarget Language: ${LANGUAGES.find(l => l.code === targetLanguage)?.name || targetLanguage}`,
+                    originalFile: file?.name,
+                    transcript: transcript,
+                    translation: translatedText,
+                  });
+                  setError(null);
+                  alert('Email sent successfully to team@languu.com');
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Failed to send email. Please try again.');
+                } finally {
+                  setIsProcessing(false);
+                }
+              }}
+              disabled={isProcessing}
+              className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              Forward to an approved native translator for review
+            </button>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Translation
-            </label>
-            <textarea
-              value={translatedText}
-              readOnly
-              className="w-full h-64 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 resize-none"
-            />
+          <div className="grid grid-cols-2 gap-4 mt-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Transcript
+              </label>
+              <textarea
+                value={transcript}
+                readOnly
+                className="w-full h-64 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 resize-none"
+              />
+            </div>
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Translation
+                </label>
+                {translatedText && (
+                  <button
+                    onClick={() => {
+                      const srtContent = `1\n00:00:00,000 --> 00:00:10,000\n${translatedText}\n\n`;
+                      const blob = new Blob([srtContent], { type: 'text/plain' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `translation_${Date.now()}.srt`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="px-4 py-1 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    Export SRT
+                  </button>
+                )}
+              </div>
+              <EditableTranslation
+                value={translatedText}
+                onChange={setTranslatedText}
+                placeholder="Translation will appear here. Click on words to edit them."
+              />
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

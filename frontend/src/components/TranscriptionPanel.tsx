@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { transcribeAudio } from '@/services/api';
+import { transcribeAudio, sendEmail } from '@/services/api';
 import { LANGUAGES, SUPPORTED_AUDIO_FORMATS, SUPPORTED_VIDEO_FORMATS, MAX_FILE_SIZE } from '@/utils/constants';
 
 const TranscriptionPanel: React.FC = () => {
@@ -10,7 +10,6 @@ const TranscriptionPanel: React.FC = () => {
   const [transcript, setTranscript] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [useHumanBacked, setUseHumanBacked] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -92,13 +91,56 @@ const TranscriptionPanel: React.FC = () => {
 
   const generateSRT = (transcript: string, withTimestamp: boolean): string => {
     if (!withTimestamp) {
-      // Simple SRT without timestamps
-      return `1\n00:00:00,000 --> 00:00:00,000\n${transcript}\n\n`;
+      // Simple SRT without timestamps - split into sentences
+      const sentences = transcript.split(/[.!?]+/).filter(s => s.trim().length > 0);
+      return sentences.map((sentence, index) => {
+        return `${index + 1}\n00:00:00,000 --> 00:00:00,000\n${sentence.trim()}\n\n`;
+      }).join('');
     }
     
-    // For now, return a basic SRT format
-    // In production, this would parse timestamps from the transcript
-    return `1\n00:00:00,000 --> 00:00:10,000\n${transcript}\n\n`;
+    // Parse timestamps from transcript format: [HH:MM:SS] text [HH:MM:SS] text ...
+    const timestampRegex = /\[(\d{2}):(\d{2}):(\d{2})\]\s*([^\[]+)/g;
+    const segments: Array<{ start: string; text: string }> = [];
+    let match;
+    
+    while ((match = timestampRegex.exec(transcript)) !== null) {
+      const [, hours, minutes, seconds] = match;
+      const text = match[4].trim();
+      
+      if (text) {
+        const startTime = `${hours}:${minutes}:${String(seconds).padStart(2, '0')},000`;
+        segments.push({
+          start: startTime,
+          text: text,
+        });
+      }
+    }
+    
+    if (segments.length === 0) {
+      // Fallback: if no timestamps found, create single entry
+      return `1\n00:00:00,000 --> 00:00:10,000\n${transcript.replace(/\[\d{2}:\d{2}:\d{2}\]/g, '').trim()}\n\n`;
+    }
+    
+    // Create SRT entries with calculated end times
+    return segments.map((seg, idx) => {
+      const nextSeg = segments[idx + 1];
+      let endTime: string;
+      
+      if (nextSeg) {
+        // Use next segment's start time as end time
+        endTime = nextSeg.start;
+      } else {
+        // Calculate end time for last segment (assume 3 seconds duration)
+        const [h, m, s] = seg.start.split(':').map(x => parseInt(x.replace(',000', '')));
+        const totalSeconds = h * 3600 + m * 60 + s + 3;
+        const endHours = Math.floor(totalSeconds / 3600);
+        const endMins = Math.floor((totalSeconds % 3600) / 60);
+        const endSecs = totalSeconds % 60;
+        endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}:${String(endSecs).padStart(2, '0')},000`;
+      }
+      
+      return `${idx + 1}\n${seg.start} --> ${endTime}\n${seg.text}\n\n`;
+    }).join('');
   };
 
   return (
@@ -120,18 +162,6 @@ const TranscriptionPanel: React.FC = () => {
             ))}
           </select>
         </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            id="useHumanBackedTranscribe"
-            checked={useHumanBacked}
-            onChange={(e) => setUseHumanBacked(e.target.checked)}
-            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-          />
-          <label htmlFor="useHumanBackedTranscribe" className="text-sm font-medium text-gray-700">
-            Human Backed
-          </label>
-        </div>
       </div>
 
       <div className="mb-6">
@@ -147,7 +177,7 @@ const TranscriptionPanel: React.FC = () => {
             onClick={() => fileInputRef.current?.click()}
             className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
           >
-            {file ? `Selected: ${file.name}` : 'Select Video File'}
+            {file ? `Selected: ${file.name}` : 'Select Audio or Video File'}
           </button>
           {file && (
             <button
@@ -212,6 +242,31 @@ const TranscriptionPanel: React.FC = () => {
 
       {transcript && (
         <div className="mt-8">
+          <div className="mb-4">
+            <button
+              onClick={async () => {
+                try {
+                  setIsProcessing(true);
+                  await sendEmail({
+                    subject: 'Transcription Review Request',
+                    body: `Please review the following transcription:\n\nFile: ${file?.name || 'Unknown'}\nSource Language: ${LANGUAGES.find(l => l.code === sourceLanguage)?.name || sourceLanguage}`,
+                    originalFile: file?.name,
+                    transcript: transcript,
+                  });
+                  setError(null);
+                  alert('Email sent successfully to team@languu.com');
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Failed to send email. Please try again.');
+                } finally {
+                  setIsProcessing(false);
+                }
+              }}
+              disabled={isProcessing}
+              className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium mb-4 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              Forward to an approved native speaker for review
+            </button>
+          </div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Transcript
           </label>
