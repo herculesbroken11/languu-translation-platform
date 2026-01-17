@@ -56,25 +56,12 @@ const EditableTranslation: React.FC<EditableTranslationProps> = ({
 
   const handleReplaceWord = (replacement: string) => {
     if (selectedWord) {
-      const words = value.split(/(\s+)/);
-      let currentIndex = 0;
-      let wordIndex = 0;
+      const text = value;
+      const wordStart = selectedWord.index;
+      const wordEnd = wordStart + selectedWord.word.length;
       
-      for (let i = 0; i < words.length; i++) {
-        if (words[i].trim().length > 0 && !/^\s+$/.test(words[i])) {
-          if (currentIndex === selectedWord.index || 
-              (currentIndex < selectedWord.index && currentIndex + words[i].length >= selectedWord.index)) {
-            words[i] = replacement;
-            break;
-          }
-          currentIndex += words[i].length;
-          wordIndex++;
-        } else {
-          currentIndex += words[i].length;
-        }
-      }
-      
-      const newValue = words.join('');
+      // Replace the word at the specific index
+      const newValue = text.substring(0, wordStart) + replacement + text.substring(wordEnd);
       onChange(newValue);
       setShowAlternatives(false);
       setSelectedWord(null);

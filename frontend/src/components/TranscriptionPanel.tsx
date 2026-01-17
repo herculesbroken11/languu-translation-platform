@@ -172,16 +172,49 @@ const TranscriptionPanel: React.FC = () => {
           onChange={handleFileSelect}
           className="hidden"
         />
-        <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+        <div
+          className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-primary-400 transition-colors"
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const droppedFile = e.dataTransfer.files[0];
+            if (droppedFile) {
+              const fileExtension = droppedFile.name.split('.').pop()?.toLowerCase();
+              const supportedFormats = [...SUPPORTED_AUDIO_FORMATS, ...SUPPORTED_VIDEO_FORMATS];
+              if (fileExtension && supportedFormats.includes(fileExtension)) {
+                if (droppedFile.size <= MAX_FILE_SIZE) {
+                  setFile(droppedFile);
+                  setError(null);
+                  setTranscript('');
+                } else {
+                  setError(`File size exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`);
+                }
+              } else {
+                setError(`Unsupported file format. Supported formats: ${supportedFormats.join(', ')}`);
+              }
+            }
+          }}
+          onClick={() => fileInputRef.current?.click()}
+        >
           <button
-            onClick={() => fileInputRef.current?.click()}
+            type="button"
             className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
           >
             {file ? `Selected: ${file.name}` : 'Select Audio or Video File'}
           </button>
           {file && (
             <button
-              onClick={() => {
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
                 setFile(null);
                 if (fileInputRef.current) fileInputRef.current.value = '';
               }}
@@ -196,6 +229,7 @@ const TranscriptionPanel: React.FC = () => {
           <p className="text-xs text-gray-400 mt-1">
             Max file size: {MAX_FILE_SIZE / 1024 / 1024}MB
           </p>
+          <p className="text-xs text-gray-400 mt-2 font-medium">or drag and drop your file here</p>
         </div>
       </div>
 
@@ -205,7 +239,7 @@ const TranscriptionPanel: React.FC = () => {
         </div>
       )}
 
-      <div className="mb-6 flex flex-wrap gap-3">
+      <div className="mb-6 flex flex-wrap gap-3 items-center">
         <button
           onClick={() => handleTranscribeWithTimestamp()}
           disabled={isProcessing || !file}
@@ -238,6 +272,9 @@ const TranscriptionPanel: React.FC = () => {
             </button>
           </>
         )}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-sm font-bold text-orange-600">HUMAN REVIEW</span>
+        </div>
       </div>
 
       {transcript && (

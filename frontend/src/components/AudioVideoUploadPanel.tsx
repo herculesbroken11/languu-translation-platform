@@ -137,28 +137,66 @@ const AudioVideoUploadPanel: React.FC = () => {
           onChange={handleFileSelect}
           className="hidden"
         />
-        <button
+        <div
+          className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-primary-400 transition-colors"
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onDragLeave={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const droppedFile = e.dataTransfer.files[0];
+            if (droppedFile) {
+              const fileExtension = droppedFile.name.split('.').pop()?.toLowerCase();
+              const supportedFormats = [...SUPPORTED_AUDIO_FORMATS, ...SUPPORTED_VIDEO_FORMATS];
+              if (fileExtension && supportedFormats.includes(fileExtension)) {
+                if (droppedFile.size <= MAX_FILE_SIZE) {
+                  setFile(droppedFile);
+                  setError(null);
+                  setTranscript('');
+                  setTranslatedText('');
+                } else {
+                  setError(`File size exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`);
+                }
+              } else {
+                setError(`Unsupported file format. Supported formats: ${supportedFormats.join(', ')}`);
+              }
+            }
+          }}
           onClick={() => fileInputRef.current?.click()}
-          className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
         >
-          {file ? file.name : 'Choose File'}
-        </button>
-        {file && (
-          <span className="ml-2 text-sm text-gray-600">
-            {file.name}
-          </span>
-        )}
-        {file && (
           <button
-            onClick={() => {
-              setFile(null);
-              if (fileInputRef.current) fileInputRef.current.value = '';
-            }}
-            className="ml-2 px-4 py-2 text-red-600 hover:text-red-700 transition-colors text-sm"
+            type="button"
+            className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
           >
-            Clear
+            {file ? `Selected: ${file.name}` : 'Select Audio or Video File'}
           </button>
-        )}
+          {file && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setFile(null);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }}
+              className="ml-4 px-4 py-3 text-red-600 hover:text-red-700 transition-colors"
+            >
+              Clear
+            </button>
+          )}
+          <p className="mt-4 text-sm text-gray-500">
+            Supported formats: {[...SUPPORTED_AUDIO_FORMATS, ...SUPPORTED_VIDEO_FORMATS].join(', ')}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">
+            Max file size: {MAX_FILE_SIZE / 1024 / 1024}MB
+          </p>
+          <p className="text-xs text-gray-400 mt-2 font-medium">or drag and drop your file here</p>
+        </div>
       </div>
 
       {error && (
@@ -181,20 +219,6 @@ const AudioVideoUploadPanel: React.FC = () => {
           className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
         >
           {isProcessing ? 'Processing...' : 'Transcribe & Translate'}
-        </button>
-        <button
-          onClick={() => handleTranscribe(true)}
-          disabled={isProcessing || !file}
-          className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
-        >
-          With Timestamp
-        </button>
-        <button
-          onClick={() => handleTranscribe(false)}
-          disabled={isProcessing || !file}
-          className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
-        >
-          Without Timestamp
         </button>
         <div className="ml-auto flex items-center gap-2">
           <span className="text-sm font-bold text-orange-600">HUMAN REVIEW</span>
@@ -260,7 +284,11 @@ const AudioVideoUploadPanel: React.FC = () => {
                 {translatedText && (
                   <button
                     onClick={() => {
-                      const srtContent = `1\n00:00:00,000 --> 00:00:10,000\n${translatedText}\n\n`;
+                      // Use the current edited translation text
+                      const sentences = translatedText.split(/[.!?]+/).filter(s => s.trim().length > 0);
+                      const srtContent = sentences.map((sentence, index) => {
+                        return `${index + 1}\n00:00:00,000 --> 00:00:00,000\n${sentence.trim()}\n\n`;
+                      }).join('');
                       const blob = new Blob([srtContent], { type: 'text/plain' });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a');
