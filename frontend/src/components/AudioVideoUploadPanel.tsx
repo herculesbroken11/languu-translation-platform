@@ -212,18 +212,19 @@ const AudioVideoUploadPanel: React.FC = () => {
       )}
 
 
-      <div className="mb-4 flex items-center gap-4">
-        <button
-          onClick={() => handleTranscribe(true)}
-          disabled={isProcessing || !file}
-          className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
-        >
-          {isProcessing ? 'Processing...' : 'Transcribe & Translate'}
-        </button>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-sm font-bold text-orange-600">HUMAN REVIEW</span>
+      <div className="mb-4">
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => handleTranscribe(true)}
+            disabled={isProcessing || !file}
+            className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+          >
+            {isProcessing ? 'Processing...' : 'Transcribe & Translate'}
+          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-sm font-bold text-orange-600">HUMAN REVIEW</span>
+          </div>
         </div>
-      </div>
         {isProcessing && uploadProgress > 0 && uploadProgress < 100 && (
           <div className="mt-2">
             <div className="w-full bg-gray-200 rounded-full h-2.5">
