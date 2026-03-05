@@ -1,11 +1,10 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { TranscribeClient, GetTranscriptionJobCommand } from '@aws-sdk/client-transcribe';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { TranslateClient, TranslateTextCommand } from '@aws-sdk/client-translate';
 import { DynamoDBDocumentClient, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { Logger } from '../../shared/utils/logger';
 import { createSuccessResponse, createErrorResponse, createCorsResponse } from '../../shared/utils/response';
-import { resourceNames, s3Client, translateClient, transcribeClient, dynamoDocClient } from '../../shared/config/aws';
+import { resourceNames, s3Client, transcribeClient, dynamoDocClient } from '../../shared/config/aws';
 
 const logger = new Logger({ function: 'transcribe-status' });
 
@@ -108,23 +107,7 @@ export const handler = async (
         }
       }
 
-      // Translate if target language is provided (only for TRANSLATE page, not TRANSCRIBE page)
-      let translatedText: string | undefined;
-      if (jobMetadata.targetLanguage && jobMetadata.targetLanguage !== jobMetadata.sourceLanguage && transcript) {
-        try {
-          const translateCommand = new TranslateTextCommand({
-            Text: transcript,
-            SourceLanguageCode: jobMetadata.sourceLanguage === 'auto' ? 'en' : jobMetadata.sourceLanguage,
-            TargetLanguageCode: jobMetadata.targetLanguage,
-          });
-
-          const translateResult = await translateClient.send(translateCommand);
-          translatedText = translateResult.TranslatedText;
-        } catch (error) {
-          logger.warn('Translation failed', { error });
-        }
-      }
-      
+      // TRANSCRIPTION ONLY - Do NOT translate (translation is handled by separate translate endpoint)
       // Use timestamped version if available, otherwise use plain transcript
       const finalTranscript = transcriptWithTimestamps || transcript;
 
@@ -134,14 +117,13 @@ export const handler = async (
         Key: {
           jobId, // Partition key - must match table schema
         },
-        UpdateExpression: 'SET #status = :status, transcript = :transcript, translatedText = :translatedText, updatedAt = :updatedAt',
+        UpdateExpression: 'SET #status = :status, transcript = :transcript, updatedAt = :updatedAt',
         ExpressionAttributeNames: {
           '#status': 'status',
         },
         ExpressionAttributeValues: {
           ':status': 'COMPLETED',
           ':transcript': finalTranscript,
-          ':translatedText': translatedText || null,
           ':updatedAt': new Date().toISOString(),
         },
       }));
@@ -150,7 +132,6 @@ export const handler = async (
         jobId,
         status: 'COMPLETED',
         transcript: finalTranscript,
-        ...(translatedText && { translatedText }),
       });
     }
 

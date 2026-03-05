@@ -213,8 +213,13 @@ const InterpretationPanel: React.FC = () => {
 
       // Connect WebSocket (already determined sourceLang and targetLang above)
       console.log('Connecting WebSocket...');
+      console.log('Connection parameters:', { sourceLang, targetLang, sessionId: sessionIdRef.current });
       await ws.connect(sourceLang, targetLang, sessionIdRef.current);
       console.log('WebSocket connected successfully');
+      console.log('WebSocket ready state after connect:', ws.isConnected());
+      
+      // Wait a moment to ensure connection is fully established
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Set up audio processing for continuous capture
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -233,7 +238,9 @@ const InterpretationPanel: React.FC = () => {
         processorRef.current = scriptProcessor;
 
         scriptProcessor.onaudioprocess = (e) => {
-          if (ws.isConnected()) {
+          // Use wsRef.current to ensure we have the latest WebSocket instance
+          const currentWs = wsRef.current;
+          if (currentWs && currentWs.isConnected()) {
             const inputData = e.inputBuffer.getChannelData(0);
             const sampleRate = audioContext.sampleRate;
             
@@ -258,18 +265,15 @@ const InterpretationPanel: React.FC = () => {
             }
 
             // Send audio chunk via WebSocket
-            if (ws.isConnected()) {
-              console.log('Sending audio chunk', { 
-                size: buffer.byteLength, 
-                sampleRate: audioContext.sampleRate,
-                processedLength: processedData.length,
-                isConnected: true
-              });
-              ws.sendAudioChunk(buffer);
+            if (currentWs.isConnected()) {
+              // Reduced logging to avoid performance issues
+              currentWs.sendAudioChunk(buffer);
             } else {
-              console.warn('⚠️ Cannot send audio chunk: WebSocket not connected');
-              console.warn('WebSocket ready state:', wsRef.current?.getReadyState());
-              console.warn('WebSocket URL:', wsRef.current?.getUrl());
+              // Only log occasionally to avoid spam
+              if (Math.random() < 0.1) { // Log 10% of failures
+                console.warn('⚠️ Cannot send audio chunk: WebSocket not connected');
+                console.warn('WebSocket ready state:', currentWs?.getReadyState());
+              }
             }
           }
         };
@@ -343,10 +347,10 @@ const InterpretationPanel: React.FC = () => {
     <div className="w-full max-w-6xl">
       <div className="mb-6">
         <div className="flex gap-4 items-start">
-          <div className="flex-1">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+        <div className="flex-1">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
               Language 1
-            </label>
+          </label>
             <div className="border border-gray-300 rounded-lg p-3 max-h-32 overflow-y-auto">
             {LANGUAGES.filter((lang) => lang.code !== 'auto').map((lang) => (
                 <div key={lang.code} className="flex items-center gap-2 mb-2">

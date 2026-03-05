@@ -98,67 +98,67 @@ const TTSPanel: React.FC = () => {
         <div className="col-span-12 lg:col-span-7">
           <div className="mb-6 flex items-center gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Language
-              </label>
-              <select
-                value={language}
-                onChange={(e) => handleLanguageChange(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                {LANGUAGES.filter((lang) => lang.code !== 'auto' && VOICES[lang.code]).map((lang) => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Language
+        </label>
+        <select
+          value={language}
+          onChange={(e) => handleLanguageChange(e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+        >
+          {LANGUAGES.filter((lang) => lang.code !== 'auto' && VOICES[lang.code]).map((lang) => (
+            <option key={lang.code} value={lang.code}>
+              {lang.name}
+            </option>
+          ))}
+        </select>
+      </div>
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Voice
-              </label>
-              <select
-                value={voiceId}
-                onChange={(e) => setVoiceId(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              >
-                {availableVoices.map((voice) => (
-                  <option key={voice.id} value={voice.id}>
-                    {voice.name}
-                  </option>
-                ))}
-              </select>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Voice
+        </label>
+        <select
+          value={voiceId}
+          onChange={(e) => setVoiceId(e.target.value)}
+          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+        >
+          {availableVoices.map((voice) => (
+            <option key={voice.id} value={voice.id}>
+              {voice.name}
+            </option>
+          ))}
+        </select>
             </div>
-          </div>
+      </div>
 
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Text to Synthesize
-            </label>
-            <textarea
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="Enter text to convert to speech..."
-              className="w-full h-48 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
-            />
-          </div>
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          Text to Synthesize
+        </label>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Enter text to convert to speech..."
+          className="w-full h-48 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
+        />
+      </div>
 
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
-              {error}
-            </div>
-          )}
-
-          <div className="mb-6">
-            <button
-              onClick={handleSynthesize}
-              disabled={isProcessing || !text.trim()}
-              className="px-8 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium text-lg"
-            >
-              {isProcessing ? 'Synthesizing...' : 'Synthesize Speech'}
-            </button>
-          </div>
+      {error && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
+          {error}
         </div>
+      )}
+
+      <div className="mb-6">
+        <button
+          onClick={handleSynthesize}
+          disabled={isProcessing || !text.trim()}
+          className="px-8 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium text-lg"
+        >
+          {isProcessing ? 'Synthesizing...' : 'Synthesize Speech'}
+        </button>
+          </div>
+      </div>
 
         {/* Right column - Results */}
         <div className="col-span-12 lg:col-span-5">
@@ -177,20 +177,20 @@ const TTSPanel: React.FC = () => {
                   <h3 className="text-xl font-bold text-gray-900">Generated Audio</h3>
                 </div>
                 <div className="bg-white rounded-lg p-6 mb-6 shadow-md">
-                  <audio controls className="w-full" src={audioUrl}>
-                    Your browser does not support the audio element.
-                  </audio>
+          <audio controls className="w-full" src={audioUrl}>
+            Your browser does not support the audio element.
+          </audio>
                 </div>
-                <a
-                  href={audioUrl}
-                  download="speech.mp3"
+            <a
+              href={audioUrl}
+              download="speech.mp3"
                   className="flex items-center justify-center gap-3 w-full px-6 py-4 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold text-base shadow-md hover:shadow-lg"
-                >
+            >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
-                  Download Audio
-                </a>
+              Download Audio
+            </a>
               </div>
             ) : (
               <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border-2 border-gray-200 h-48 flex items-center justify-center">
@@ -205,9 +205,9 @@ const TTSPanel: React.FC = () => {
                   <p className="text-sm text-gray-500">
                     Your generated audio will appear here after synthesis
                   </p>
-                </div>
-              </div>
-            )}
+          </div>
+        </div>
+      )}
           </div>
         </div>
       </div>

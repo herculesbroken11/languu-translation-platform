@@ -28,10 +28,13 @@ export const connectHandler = async (
   const connectionId = event.requestContext.connectionId!;
   console.log('Connection ID:', connectionId);
   
-  // Parse query string from event (WebSocket V2 may have queryString in requestContext)
-  // For WebSocket V2, query parameters are in event.requestContext or event.queryStringParameters
+  // Parse query string from event
+  // For WebSocket V2, query parameters are directly in event.queryStringParameters
+  // Also check requestContext as fallback for different API Gateway configurations
   const queryString = event.queryStringParameters || (event as any).requestContext?.queryStringParameters || {};
   console.log('Query String:', JSON.stringify(queryString));
+  console.log('Event queryStringParameters:', event.queryStringParameters);
+  console.log('Event requestContext:', JSON.stringify(event.requestContext, null, 2));
   
   let sourceLanguage = (queryString.sourceLanguage as string) || 'en';
   let targetLanguage = (queryString.targetLanguage as string) || 'es';

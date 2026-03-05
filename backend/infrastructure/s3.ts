@@ -1,5 +1,5 @@
 import { Bucket, BucketEncryption, BlockPublicAccess, CorsRule, HttpMethods } from 'aws-cdk-lib/aws-s3';
-import { RemovalPolicy } from 'aws-cdk-lib';
+import { RemovalPolicy, Stack } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 
 export interface S3Config {
@@ -10,8 +10,10 @@ export function createS3Bucket(
   scope: Construct,
   config: S3Config
 ): Bucket {
+  const account = Stack.of(scope).account;
+  const bucketName = `languu-${config.stage}-media-${account}`;
   const bucket = new Bucket(scope, `LanguuMediaBucket-${config.stage}`, {
-    bucketName: `languu-${config.stage}-media`,
+    bucketName,
     encryption: BucketEncryption.S3_MANAGED,
     blockPublicAccess: BlockPublicAccess.BLOCK_ALL,
     removalPolicy:

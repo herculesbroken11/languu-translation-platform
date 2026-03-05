@@ -239,23 +239,28 @@ const TranscriptionPanel: React.FC = () => {
         </div>
       )}
 
-      <div className="mb-6 flex flex-wrap gap-3 items-center">
+      <div className="mb-6">
+        <div className="flex flex-wrap gap-3 items-center mb-3">
+          <button
+            onClick={() => handleTranscribeWithTimestamp()}
+            disabled={isProcessing || !file}
+            className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+          >
+            {isProcessing ? 'Processing...' : 'Transcribe with Timestamp'}
+          </button>
         <button
-          onClick={() => handleTranscribeWithTimestamp()}
+            onClick={() => handleTranscribeWithoutTimestamp()}
           disabled={isProcessing || !file}
-          className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+            className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
         >
-          {isProcessing ? 'Processing...' : 'Transcribe with Timestamp'}
-        </button>
-        <button
-          onClick={() => handleTranscribeWithoutTimestamp()}
-          disabled={isProcessing || !file}
-          className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
-        >
-          {isProcessing ? 'Processing...' : 'Transcribe without Timestamp'}
-        </button>
+            {isProcessing ? 'Processing...' : 'Transcribe without Timestamp'}
+          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-sm font-bold text-orange-600">HUMAN REVIEW</span>
+          </div>
+        </div>
         {transcript && (
-          <>
+          <div className="flex flex-wrap gap-3 items-center">
             <button
               onClick={() => handleExportSRT(true)}
               disabled={!transcript}
@@ -269,12 +274,9 @@ const TranscriptionPanel: React.FC = () => {
               className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
             >
               Export SRT file without Timestamp
-            </button>
-          </>
+        </button>
+          </div>
         )}
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-sm font-bold text-orange-600">HUMAN REVIEW</span>
-        </div>
       </div>
 
       {transcript && (
@@ -304,14 +306,14 @@ const TranscriptionPanel: React.FC = () => {
               Forward to an approved native speaker for review
             </button>
           </div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Transcript
-          </label>
-          <textarea
-            value={transcript}
-            readOnly
-            className="w-full h-96 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 resize-none"
-          />
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Transcript
+            </label>
+            <textarea
+              value={transcript}
+              readOnly
+              className="w-full h-96 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 resize-none"
+            />
         </div>
       )}
     </div>

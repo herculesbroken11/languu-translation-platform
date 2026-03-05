@@ -136,17 +136,22 @@ export class InterpretationWebSocket {
       return;
     }
     
-    // Convert audio to base64 for transmission
-    const base64 = btoa(
-      new Uint8Array(audioData)
-        .reduce((data, byte) => data + String.fromCharCode(byte), '')
-    );
+    // Convert audio to base64 for transmission (more robust method)
+    const bytes = new Uint8Array(audioData);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const base64 = btoa(binary);
     
-    console.log('Sending audio chunk:', {
-      audioDataSize: audioData.byteLength,
-      base64Length: base64.length,
-      isConnected: this.isConnected(),
-    });
+    // Only log occasionally to avoid performance issues
+    if (Math.random() < 0.01) { // Log 1% of chunks
+      console.log('Sending audio chunk:', {
+        audioDataSize: audioData.byteLength,
+        base64Length: base64.length,
+        isConnected: this.isConnected(),
+      });
+    }
     
     this.send({
       type: 'audio-chunk',

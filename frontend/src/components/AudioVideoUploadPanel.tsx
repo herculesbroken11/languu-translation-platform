@@ -170,25 +170,25 @@ const AudioVideoUploadPanel: React.FC = () => {
           }}
           onClick={() => fileInputRef.current?.click()}
         >
-          <button
+        <button
             type="button"
             className="px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium"
-          >
+        >
             {file ? `Selected: ${file.name}` : 'Select Audio or Video File'}
-          </button>
-          {file && (
-            <button
+        </button>
+        {file && (
+          <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                setFile(null);
-                if (fileInputRef.current) fileInputRef.current.value = '';
-              }}
+              setFile(null);
+              if (fileInputRef.current) fileInputRef.current.value = '';
+            }}
               className="ml-4 px-4 py-3 text-red-600 hover:text-red-700 transition-colors"
-            >
-              Clear
-            </button>
-          )}
+          >
+            Clear
+          </button>
+        )}
           <p className="mt-4 text-sm text-gray-500">
             Supported formats: {[...SUPPORTED_AUDIO_FORMATS, ...SUPPORTED_VIDEO_FORMATS].join(', ')}
           </p>
@@ -214,13 +214,13 @@ const AudioVideoUploadPanel: React.FC = () => {
 
       <div className="mb-4">
         <div className="flex items-center gap-4">
-          <button
+        <button
             onClick={() => handleTranscribe(true)}
-            disabled={isProcessing || !file}
-            className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
-          >
-            {isProcessing ? 'Processing...' : 'Transcribe & Translate'}
-          </button>
+          disabled={isProcessing || !file}
+          className="px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+        >
+          {isProcessing ? 'Processing...' : 'Transcribe & Translate'}
+        </button>
           <div className="ml-auto flex items-center gap-2">
             <span className="text-sm font-bold text-orange-600">HUMAN REVIEW</span>
           </div>
@@ -266,22 +266,22 @@ const AudioVideoUploadPanel: React.FC = () => {
               Forward to an approved native translator for review
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-4 mt-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Transcript
-              </label>
-              <textarea
-                value={transcript}
-                readOnly
-                className="w-full h-64 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 resize-none"
-              />
-            </div>
-            <div>
+        <div className="grid grid-cols-2 gap-4 mt-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Transcript
+            </label>
+            <textarea
+              value={transcript}
+              readOnly
+              className="w-full h-64 px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 resize-none"
+            />
+          </div>
+          <div>
               <div className="flex justify-between items-center mb-2">
                 <label className="block text-sm font-medium text-gray-700">
-                  Translation
-                </label>
+              Translation
+            </label>
                 {translatedText && (
                   <button
                     onClick={() => {
@@ -307,12 +307,12 @@ const AudioVideoUploadPanel: React.FC = () => {
                 )}
               </div>
               <EditableTranslation
-                value={translatedText}
+              value={translatedText}
                 onChange={setTranslatedText}
                 placeholder="Translation will appear here. Click on words to edit them."
-              />
-            </div>
+            />
           </div>
+        </div>
         </>
       )}
     </div>
