@@ -95,7 +95,7 @@ const EditableTranslation: React.FC<EditableTranslationProps> = ({
       />
       {showAlternatives && selectedWord && (
         <div className="absolute z-10 mt-2 p-3 bg-white border border-gray-300 rounded-lg shadow-lg">
-          <p className="text-sm font-medium text-gray-700 mb-2">Selected: "{selectedWord.word}"</p>
+          <p className="text-sm font-medium text-gray-700 mb-2">Selected: &quot;{selectedWord.word}&quot;</p>
           <p className="text-xs text-gray-500 mb-2">Alternative translations feature coming soon</p>
           <button
             onClick={() => {
