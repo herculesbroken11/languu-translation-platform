@@ -106,9 +106,11 @@ export const handler = async (
     await s3Client.send(putObjectCommand);
 
     // Generate presigned URL for access (expires in 1 hour)
+    // ResponseContentDisposition makes the browser download instead of open inline when URL is visited
     const getObjectCommand = new GetObjectCommand({
       Bucket: resourceNames.s3Bucket,
       Key: audioKey,
+      ResponseContentDisposition: 'attachment; filename="languu-tts.mp3"',
     });
 
     const expiresIn = 3600; // 1 hour

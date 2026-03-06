@@ -25,10 +25,10 @@ export const dynamoDBClient = new DynamoDBClient({ region });
 export const dynamoDocClient = DynamoDBDocumentClient.from(dynamoDBClient);
 export const sesClient = new SESClient({ region });
 
-// Resource Names
+// Resource Names (use env vars when set by CDK in Lambda, else fallback for local dev)
 export const resourceNames = {
-  s3Bucket: `languu-${stage}-media`,
-  dynamoTable: `languu-${stage}-jobs`,
+  s3Bucket: process.env.S3_BUCKET || `languu-${stage}-media`,
+  dynamoTable: process.env.DYNAMODB_TABLE || `languu-${stage}-jobs`,
   translateFunction: `languu-${stage}-translate`,
   transcribeFunction: `languu-${stage}-transcribe`,
   interpretationFunction: `languu-${stage}-interpretation`,

@@ -66,6 +66,25 @@ const TTSPanel: React.FC = () => {
     setVoiceId(voices[0].id);
   };
 
+  const handleDownload = async () => {
+    if (!audioUrl) return;
+    try {
+      const res = await fetch(audioUrl, { mode: 'cors' });
+      if (!res.ok) throw new Error('Failed to fetch audio');
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = 'languu-speech.mp3';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch {
+      setError('Download failed. You can try opening the audio in a new tab.');
+    }
+  };
+
   const handleSynthesize = async () => {
     if (!text.trim()) {
       setError('Please enter text to synthesize');
@@ -181,16 +200,16 @@ const TTSPanel: React.FC = () => {
             Your browser does not support the audio element.
           </audio>
                 </div>
-            <a
-              href={audioUrl}
-              download="speech.mp3"
-                  className="flex items-center justify-center gap-3 w-full px-6 py-4 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold text-base shadow-md hover:shadow-lg"
+            <button
+              type="button"
+              onClick={handleDownload}
+              className="flex items-center justify-center gap-3 w-full px-6 py-4 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-semibold text-base shadow-md hover:shadow-lg"
             >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                   </svg>
               Download Audio
-            </a>
+            </button>
               </div>
             ) : (
               <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border-2 border-gray-200 h-48 flex items-center justify-center">
